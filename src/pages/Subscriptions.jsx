@@ -111,26 +111,42 @@ export default function Subscriptions() {
 
       {activeSub && (
         <Alert severity="info" sx={{ mb: 4 }} icon={<CheckCircleIcon fontSize="inherit" />}>
-          You are currently subscribed to the <strong>{activePlanName}</strong> plan. 
-          (Expires: {new Date(activeSub.end_date).toLocaleDateString()})
+          You are currently subscribed to the <strong>{activePlanName}</strong> plan.
+          {activePlanName && activePlanName.toLowerCase() === 'free' ? (
+            <span> This plan has no expiration date.</span>
+          ) : (
+            <span> (Expires: {new Date(activeSub.end_date).toLocaleDateString()})</span>
+          )}
         </Alert>
       )}
 
       <Grid container spacing={4}>
-        {plans.map((plan) => (
+        {plans.map((plan) => {
+          const isCurrentPlan = activeSub && (activeSub.plan_id === plan.plan_id || activePlanName?.toLowerCase() === plan.name?.toLowerCase());
+          return (
           <Grid item key={plan.plan_id || plan.name} xs={12} md={4}>
             <Card 
-              elevation={plan.name === 'Pro' ? 8 : 2} 
+              elevation={isCurrentPlan ? 8 : (plan.name === 'Pro' ? 6 : 2)} 
               sx={{ 
                 height: '100%', 
                 display: 'flex', 
                 flexDirection: 'column',
-                border: plan.name === 'Pro' ? '2px solid' : 'none',
-                borderColor: 'primary.main',
-                position: 'relative'
+                border: isCurrentPlan ? '3px solid' : (plan.name === 'Pro' ? '2px solid' : 'none'),
+                borderColor: isCurrentPlan ? 'success.main' : 'primary.main',
+                position: 'relative',
+                bgcolor: isCurrentPlan ? 'success.light' : 'background.paper',
+                opacity: isCurrentPlan ? 1 : 0.95
               }}
             >
-              {plan.name === 'Pro' && (
+              {isCurrentPlan && (
+                <Chip 
+                  label="YOUR PLAN" 
+                  color="success" 
+                  size="small" 
+                  sx={{ position: 'absolute', top: 16, right: 16, fontWeight: 'bold' }} 
+                />
+              )}
+              {!isCurrentPlan && plan.name === 'Pro' && (
                 <Chip 
                   label="POPULAR" 
                   color="primary" 
@@ -163,17 +179,19 @@ export default function Subscriptions() {
               <CardActions sx={{ p: 2 }}>
                 <Button 
                   fullWidth 
-                  variant={plan.name === 'Pro' ? 'contained' : 'outlined'}
+                  variant={isCurrentPlan ? 'contained' : (plan.name === 'Pro' ? 'contained' : 'outlined')}
+                  color={isCurrentPlan ? 'success' : 'primary'}
                   size="large"
                   onClick={() => handleSubscribe(plan)}
-                  disabled={processing || (activeSub && activeSub.plan_id === plan.plan_id)}
+                  disabled={processing || isCurrentPlan}
                 >
-                  {activeSub && activeSub.plan_id === plan.plan_id ? 'Current Plan' : 'Subscribe'}
+                  {isCurrentPlan ? 'Current Plan' : 'Subscribe'}
                 </Button>
               </CardActions>
             </Card>
           </Grid>
-        ))}
+          );
+        })}
       </Grid>
     </Container>
   );

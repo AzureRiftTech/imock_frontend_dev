@@ -37,12 +37,16 @@ export default function Profile() {
   const [packagesError, setPackagesError] = useState('');
   const [purchasing, setPurchasing] = useState(false);
   const [totalCredits, setTotalCredits] = useState(0);
+  const [subscription, setSubscription] = useState(null);
+  const [invoices, setInvoices] = useState([]);
 
   useEffect(() => {
     fetchDetails();
     fetchConnections();
     fetchPackages();
     fetchTotalCredits();
+    fetchSubscription();
+    fetchInvoices();
   }, []);
 
   const [deleting, setDeleting] = useState(null);
@@ -170,6 +174,24 @@ export default function Profile() {
       setTotalCredits(res.data.total_credits || 0);
     } catch (e) {
       console.error('Failed to fetch total credits', e);
+    }
+  };
+
+  const fetchSubscription = async () => {
+    try {
+      const res = await api.get('/subscriptions/me');
+      setSubscription(res.data.subscription || null);
+    } catch (e) {
+      console.error('Failed to fetch subscription', e);
+    }
+  };
+
+  const fetchInvoices = async () => {
+    try {
+      const res = await api.get('/subscriptions/invoices/me');
+      setInvoices(res.data.invoices || []);
+    } catch (e) {
+      console.error('Failed to fetch invoices', e);
     }
   };
 
@@ -446,6 +468,96 @@ export default function Profile() {
                 </Box>
               )}
             </Box>
+          </Paper>
+        </Grid>
+
+        {/* Subscription Section */}
+        <Grid item xs={12}>
+          <Paper elevation={3} sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Current Subscription
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+
+            {subscription ? (
+              <Box>
+                <Box sx={{ 
+                  display: 'inline-block',
+                  bgcolor: subscription.plan_name === 'Free' ? 'success.light' : 'primary.light',
+                  color: 'white',
+                  px: 3,
+                  py: 1.5,
+                  borderRadius: 2,
+                  mb: 2
+                }}>
+                  <Typography variant="h5" fontWeight="bold">
+                    {subscription.plan_name || subscription.plan_type} Plan
+                  </Typography>
+                </Box>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={4}>
+                    <Typography variant="body2" color="text.secondary">Price</Typography>
+                    <Typography variant="h6">₹{((subscription.price_cents || 0) / 100).toFixed(2)}</Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Typography variant="body2" color="text.secondary">Interval</Typography>
+                    <Typography variant="h6">{subscription.interval || 'monthly'}</Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Typography variant="body2" color="text.secondary">Credits Allocated</Typography>
+                    <Typography variant="h6">{subscription.credits_allocated || 0}</Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary">Start Date</Typography>
+                    <Typography>{new Date(subscription.start_date).toLocaleDateString()}</Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.secondary">End Date</Typography>
+                    <Typography>{new Date(subscription.end_date).toLocaleDateString()}</Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+            ) : (
+              <Typography color="text.secondary">No active subscription</Typography>
+            )}
+          </Paper>
+        </Grid>
+
+        {/* Invoices Section */}
+        <Grid item xs={12}>
+          <Paper elevation={3} sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Invoices
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+
+            {invoices.length === 0 ? (
+              <Typography color="text.secondary">No invoices available</Typography>
+            ) : (
+              <List>
+                {invoices.map((invoice) => (
+                  <ListItem key={invoice.invoice_id} sx={{ bgcolor: 'background.default', mb: 1, borderRadius: 1 }}>
+                    <ListItemText
+                      primary={`Invoice #${invoice.invoice_number}`}
+                      secondary={
+                        <>
+                          <Typography component="span" variant="body2">
+                            Amount: ₹{(invoice.total || 0).toFixed(2)}
+                          </Typography>
+                          <br />
+                          <Typography component="span" variant="body2" color="text.secondary">
+                            {new Date(invoice.issued_at).toLocaleDateString()} • {invoice.payment_type || 'N/A'}
+                          </Typography>
+                        </>
+                      }
+                    />
+                    <Button variant="outlined" size="small">
+                      Download
+                    </Button>
+                  </ListItem>
+                ))}
+              </List>
+            )}
           </Paper>
         </Grid>
       </Grid>
