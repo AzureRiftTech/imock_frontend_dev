@@ -15,6 +15,11 @@ import Subscriptions from './pages/Subscriptions';
 import VerifyEmail from './pages/VerifyEmail';
 import UserDetails from './pages/UserDetails';
 import Interviews from './pages/Interviews';
+import SuperAdminIndex from './pages/super-admin';
+import SAUsers from './pages/super-admin/Users';
+import SAPlans from './pages/super-admin/Plans';
+import SACreditPackages from './pages/super-admin/CreditPackages';
+import SACredits from './pages/super-admin/Credits';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useState, useMemo } from 'react';
 
@@ -44,6 +49,13 @@ function App() {
                 <Route path="/verify-email" element={<VerifyEmail />} />
                 <Route path="/user-details" element={<UserDetails />} />
                 <Route path="/interviews" element={<Interviews />} />
+                <Route path="/super-admin" element={<SuperAdminIndex />}>
+                  <Route index element={<Navigate to="users" />} />
+                  <Route path="users" element={<SAUsers />} />
+                  <Route path="plans" element={<SAPlans />} />
+                  <Route path="credit-packages" element={<SACreditPackages />} />
+                  <Route path="credits" element={<SACredits />} />
+                </Route>
                 {/* Add other protected routes here */}
                 <Route path="*" element={<Navigate to="/" />} />
               </Route>

@@ -8,6 +8,10 @@ import PersonIcon from '@mui/icons-material/Person';
 import CardMembershipIcon from '@mui/icons-material/CardMembership';
 import EventIcon from '@mui/icons-material/Event';
 import LinkIcon from '@mui/icons-material/Link';
+import PeopleIcon from '@mui/icons-material/People';
+import LocalOfferIcon from '@mui/icons-material/LocalOffer';
+import InventoryIcon from '@mui/icons-material/Inventory';
+import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import { useAuth } from '../context/AuthContext';
 
 const drawerWidth = 240;
@@ -46,6 +50,15 @@ export default function Layout() {
     { text: 'Profile', icon: <PersonIcon />, path: '/profile' },
     { text: 'Connections', icon: <LinkIcon />, path: '/connected-accounts' },
   ];
+
+  // Add super admin menu and sub-links only for super_admin users
+  if (user && user.role === 'super_admin') {
+    menuItems.push({ text: 'Super Admin', icon: <LinkIcon />, path: '/super-admin' });
+    menuItems.push({ text: 'SA: Users', icon: <PeopleIcon />, path: '/super-admin/users' });
+    menuItems.push({ text: 'SA: Plans', icon: <LocalOfferIcon />, path: '/super-admin/plans' });
+    menuItems.push({ text: 'SA: Credit Packages', icon: <InventoryIcon />, path: '/super-admin/credit-packages' });
+    menuItems.push({ text: 'SA: Credits', icon: <MonetizationOnIcon />, path: '/super-admin/credits' });
+  }
 
   const drawer = (
     <div>
