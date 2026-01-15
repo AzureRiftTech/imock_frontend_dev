@@ -21,6 +21,7 @@ import SAPlans from './pages/super-admin/Plans';
 import SACreditPackages from './pages/super-admin/CreditPackages';
 import SACredits from './pages/super-admin/Credits';
 import ProtectedRoute from './components/ProtectedRoute';
+import MockInterview from './pages/MockInterview';
 import { useState, useMemo } from 'react';
 
 function App() {
@@ -49,6 +50,7 @@ function App() {
                 <Route path="/verify-email" element={<VerifyEmail />} />
                 <Route path="/user-details" element={<UserDetails />} />
                 <Route path="/interviews" element={<Interviews />} />
+                <Route path="/mock-interview" element={<MockInterview />} />
                 <Route path="/super-admin" element={<SuperAdminIndex />}>
                   <Route index element={<Navigate to="users" />} />
                   <Route path="users" element={<SAUsers />} />

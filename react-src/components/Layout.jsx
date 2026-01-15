@@ -49,6 +49,7 @@ export default function Layout() {
     { text: 'Subscriptions', icon: <CardMembershipIcon />, path: '/subscriptions' },
     { text: 'Profile', icon: <PersonIcon />, path: '/profile' },
     { text: 'Connections', icon: <LinkIcon />, path: '/connected-accounts' },
+    { text: 'Mock Interview', icon: <PeopleIcon />, path: '/mock-interview' },
   ];
 
   // Add super admin menu and sub-links only for super_admin users

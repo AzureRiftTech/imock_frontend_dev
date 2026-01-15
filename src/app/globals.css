@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design defaults: modern, minimal, premium */
+html {
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+body {
+  @apply bg-white text-zinc-900 antialiased;
+}
+
+/* Subtle background accents */
+.app-gradient {
+  background:
+    radial-gradient(900px 400px at 10% 10%, rgba(136, 70, 255, 0.18), transparent 60%),
+    radial-gradient(800px 360px at 90% 0%, rgba(213, 0, 249, 0.12), transparent 55%),
+    radial-gradient(900px 500px at 50% 110%, rgba(136, 70, 255, 0.10), transparent 60%),
+    linear-gradient(to bottom, #ffffff, #fbfaff);
+}

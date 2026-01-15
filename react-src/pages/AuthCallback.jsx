@@ -5,10 +5,14 @@ import { useAuth } from '../context/AuthContext';
 
 export default function AuthCallback() {
   const [error, setError] = useState('');
+  const [processed, setProcessed] = useState(false);
   const navigate = useNavigate();
   const { handleOAuthCallback } = useAuth();
 
   useEffect(() => {
+    // Prevent duplicate execution in StrictMode or re-renders
+    if (processed) return;
+    
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     const oauthError = params.get('error');
@@ -39,6 +43,7 @@ export default function AuthCallback() {
       return;
     }
 
+    setProcessed(true);
     (async () => {
       try {
         const result = await handleOAuthCallback(token);
@@ -56,6 +61,7 @@ export default function AuthCallback() {
         removeTokenFromUrl();
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
