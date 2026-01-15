@@ -100,7 +100,7 @@ export class AzureAvatarManager {
           this.videoElement.autoplay = true
           this.videoElement.playsInline = true
           this.videoElement.className = 'w-full h-full object-cover'
-          
+
           // Clear and append video
           videoContainer.innerHTML = ''
           videoContainer.appendChild(this.videoElement)
@@ -144,9 +144,16 @@ export class AzureAvatarManager {
     }
 
     return new Promise((resolve, reject) => {
+      // Set a safety timeout - sometimes Azure doesn't return the completion callback
+      const timeout = setTimeout(() => {
+        console.warn('[AzureAvatar] Speech timeout - resolving manually')
+        resolve()
+      }, 30000) // 30s max for any single utterance
+
       this.avatarSynthesizer.speakTextAsync(
         text,
         (result: any) => {
+          clearTimeout(timeout)
           const SpeechSDK = window.SpeechSDK
           if (result.reason === SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
             console.log('[AzureAvatar] Speech completed')
@@ -158,12 +165,15 @@ export class AzureAvatarManager {
               console.error('[AzureAvatar] Cancellation reason:', cancellation.reason)
               console.error('[AzureAvatar] Error details:', cancellation.errorDetails)
             }
-            reject(new Error('Speech synthesis failed'))
+            // Resolve instead of reject to avoid hanging the interview flow
+            resolve()
           }
         },
         (error: any) => {
+          clearTimeout(timeout)
           console.error('[AzureAvatar] Speech error:', error)
-          reject(error)
+          // Resolve instead of reject to avoid hanging the interview flow
+          resolve()
         }
       )
     })
@@ -208,11 +218,11 @@ export class AzureAvatarManager {
 // Lazy initialization - only create instance when accessed in browser
 let managerInstance: AzureAvatarManager | null = null
 
-export const azureAvatarManager = typeof window !== 'undefined' 
-  ? new AzureAvatarManager() 
+export const azureAvatarManager = typeof window !== 'undefined'
+  ? new AzureAvatarManager()
   : ({
-      startAvatar: async () => { throw new Error('Avatar not available on server') },
-      speak: async () => { throw new Error('Avatar not available on server') },
-      stopAvatar: async () => {},
-      isAvatarConnected: () => false
-    } as any as AzureAvatarManager)
+    startAvatar: async () => { throw new Error('Avatar not available on server') },
+    speak: async () => { throw new Error('Avatar not available on server') },
+    stopAvatar: async () => { },
+    isAvatarConnected: () => false
+  } as any as AzureAvatarManager)
