@@ -147,7 +147,7 @@ export default function Interviews() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this interview?')) return;
+    if (!(await sweetConfirm('Delete this interview?'))) return;
     setDeleting(id);
     setError(''); setSuccess('');
     try {

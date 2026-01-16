@@ -5,6 +5,7 @@ import { api } from '@/lib/api'
 import { getApiErrorMessage } from '@/lib/error'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { sweetConfirm, sweetAlert } from '@/lib/swal' 
 
 type CvRow = {
   cv_id: number
@@ -99,7 +100,7 @@ export default function CvPage() {
   }
 
   const deleteCv = async (row: CvRow) => {
-    const ok = window.confirm(`Delete CV “${row.original_filename || row.cv_id}”?`)
+    const ok = await sweetConfirm(`Delete CV “${row.original_filename || row.cv_id}”?`)
     if (!ok) return
 
     setDeletingId(row.cv_id)

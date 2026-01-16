@@ -9,6 +9,7 @@ import { motion } from 'framer-motion'
 import { useAuth } from '@/context/auth-context'
 import { api } from '@/lib/api'
 import { getApiErrorMessage } from '@/lib/error'
+import { sweetAlert, sweetConfirm } from '@/lib/swal' 
 
 type UserDashboardResp = {
   subscription: {
@@ -121,7 +122,7 @@ export default function UserDashboardPage() {
                     <Link href="/subscriptions">
                       <Button>Buy credits</Button>
                     </Link>
-                    <Button variant="ghost" onClick={() => alert('To request free credits, contact support or upgrade your plan.')}>Request credits</Button>
+                    <Button variant="ghost" onClick={() => { void sweetAlert('Request credits', 'To request free credits, contact support or upgrade your plan.', 'info') }}>Request credits</Button>
                   </div>
                 </div>
               )}

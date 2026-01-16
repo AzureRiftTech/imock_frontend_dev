@@ -119,7 +119,7 @@ export default function CVUpload() {
   };
 
   const handleDelete = async (cvId) => {
-    if (!window.confirm('Are you sure you want to delete this CV?')) {
+    if (!(await sweetConfirm('Are you sure you want to delete this CV?'))) {
       return;
     }
 

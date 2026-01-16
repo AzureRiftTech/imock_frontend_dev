@@ -7,6 +7,7 @@ import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import api from '../api/axios';
+import { sweetConfirm, sweetAlert } from '../../src/lib/swal';
 import { useAuth } from '../context/AuthContext';
 
 export default function SuperAdmin() {
@@ -123,7 +124,7 @@ export default function SuperAdmin() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this user?')) return;
+    if (!(await sweetConfirm('Delete this user?'))) return;
     try {
       await api.delete(`/super-admin/users/${id}`);
       setUsers(prev => prev.filter(u => u.user_id !== id));
@@ -135,7 +136,7 @@ export default function SuperAdmin() {
   const toggleActive = async (u) => {
     try {
       const confirmMsg = u.is_active ? 'Deactivate this user?' : 'Activate this user?';
-      if (!window.confirm(confirmMsg)) return;
+      if (!(await sweetConfirm(confirmMsg))) return;
       const payload = { username: u.username, email: u.email, role: u.role, is_active: !u.is_active };
       const res = await api.put(`/super-admin/users/${u.user_id}`, payload);
       setUsers(prev => prev.map(x => x.user_id === res.data.user_id ? res.data : x));
@@ -166,7 +167,7 @@ export default function SuperAdmin() {
     } finally { setCatSaving(false); }
   };
   const deleteCat = async (id) => {
-    if (!window.confirm('Delete this category?')) return;
+    if (!(await sweetConfirm('Delete this category?'))) return;
     try {
       await api.delete(`/super-admin/job-categories/${id}`);
       setJobCategories(prev => prev.filter(p => p.job_category_id !== id));
@@ -191,14 +192,14 @@ export default function SuperAdmin() {
       closePlan();
     } catch (err) { console.error('Plan save failed', err); setError(err.response?.data?.error || 'Failed to save plan'); } finally { setPlanSaving(false); }
   };
-  const deletePlan = async (id) => { if (!window.confirm('Delete this plan?')) return; try { await api.delete(`/super-admin/plans/${id}`); setPlans(prev => prev.filter(p => p.plan_id !== id)); } catch (err) { setError(err.response?.data?.error || 'Failed to delete plan'); } };
+const del = async (id) => { if (!(await sweetConfirm('Delete this plan?'))) return; try { await api.delete(`/super-admin/plans/${id}`); setPlans(prev => prev.filter(p => p.plan_id !== id)); } catch (err) { setError(err.response?.data?.error || 'Failed to delete plan'); } };
 
   // credit packages CRUD
   const openCreatePkg = () => { setEditPkg({ name: '', credits: 0, price_cents: 0 }); setPkgOpen(true); };
   const openEditPkg = (p) => { setEditPkg({ ...p }); setPkgOpen(true); };
   const closePkg = () => { setPkgOpen(false); setEditPkg(null); };
   const savePkg = async () => { if (!editPkg) return; setPkgSaving(true); try { if (editPkg.package_id) { const res = await api.put(`/super-admin/credit-packages/${editPkg.package_id}`, editPkg); setCreditPackages(prev => prev.map(p => p.package_id === res.data.package_id ? res.data : p)); } else { const res = await api.post('/super-admin/credit-packages', editPkg); setCreditPackages(prev => [res.data, ...prev]); } closePkg(); } catch (err) { console.error('Package save failed', err); setError(err.response?.data?.error || 'Failed to save package'); } finally { setPkgSaving(false); } };
-  const deletePkg = async (id) => { if (!window.confirm('Delete this package?')) return; try { await api.delete(`/super-admin/credit-packages/${id}`); setCreditPackages(prev => prev.filter(p => p.package_id !== id)); } catch (err) { setError(err.response?.data?.error || 'Failed to delete package'); } };
+  const deletePkg = async (id) => { if (!(await sweetConfirm('Delete this package?'))) return; try { await api.delete(`/super-admin/credit-packages/${id}`); setCreditPackages(prev => prev.filter(p => p.package_id !== id)); } catch (err) { setError(err.response?.data?.error || 'Failed to delete package'); } };
 
   // subscriptions & credits per-user
   const openUserSubs = async (u) => { setSubsUser(u); setSubsOpen(true); try { const res = await api.get(`/super-admin/users/${u.user_id}/subscriptions`); setUserSubs(res.data || []); } catch (err) { setError(err.response?.data?.error || 'Failed to load subscriptions'); } };

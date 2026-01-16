@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { sweetConfirm, sweetAlert } from '@/lib/swal' 
 
 type JobCategory = {
   job_category_id: number
@@ -384,7 +385,7 @@ export default function InterviewsPage() {
   }
 
   const deleteInterview = async (row: Interview) => {
-    const ok = window.confirm(`Delete interview at ${row.company_name}?`)
+    const ok = await sweetConfirm(`Delete interview at ${row.company_name}?`)
     if (!ok) return
     setError(null)
     try {

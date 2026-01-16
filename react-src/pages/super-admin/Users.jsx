@@ -60,7 +60,7 @@ export default function SAUsers() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this user?')) return;
+    if (!(await sweetConfirm('Delete this user?'))) return;
     try {
       await api.delete(`/super-admin/users/${id}`);
       setUsers(prev => prev.filter(u => u.user_id !== id));
@@ -83,7 +83,7 @@ export default function SAUsers() {
   const toggleActive = async (u) => {
     try {
       const confirmMsg = u.is_active ? 'Deactivate this user?' : 'Activate this user?';
-      if (!window.confirm(confirmMsg)) return;
+      if (!(await sweetConfirm(confirmMsg))) return;
       const payload = { username: u.username, email: u.email, role: u.role, is_active: !u.is_active };
       const res = await api.put(`/super-admin/users/${u.user_id}`, payload);
       setUsers(prev => prev.map(x => x.user_id === res.data.user_id ? res.data : x));

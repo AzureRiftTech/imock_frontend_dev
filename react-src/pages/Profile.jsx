@@ -9,6 +9,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import api from '../api/axios';
 import { useAuth } from '../context/AuthContext';
+import { sweetConfirm, sweetAlert } from '../../src/lib/swal';
 
 export default function Profile() {
   const { user } = useAuth();
@@ -83,7 +84,7 @@ export default function Profile() {
   };
 
   const handleDeleteResume = async (url) => {
-    if (!window.confirm('Delete this resume?')) return;
+    if (!(await sweetConfirm('Delete this resume?'))) return;
     setError(''); setSuccess('');
     setDeleting(url);
     try {

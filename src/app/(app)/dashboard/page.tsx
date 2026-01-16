@@ -8,7 +8,8 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { useAuth } from '@/context/auth-context'
 import { api } from '@/lib/api'
-import { getApiErrorMessage } from '@/lib/error' 
+import { getApiErrorMessage } from '@/lib/error'
+import { sweetAlert, sweetConfirm } from '@/lib/swal' 
 
 // Color palette for plans (keeps visuals consistent)
 const PALETTE = ['#0ea5e9','#6366f1','#06b6d4','#f97316','#ef4444','#10b981','#a78bfa','#f59e0b']
@@ -177,7 +178,7 @@ export default function DashboardPage() {
                     <div className="text-xs text-zinc-500">Total credits: {userDash?.total_credits ?? userDash?.credits?.current_credits ?? 0}</div>
                     <div className="mt-3 flex items-center gap-2">
                       <a href="/subscriptions"><Button>Buy credits</Button></a>
-                      <Button variant="ghost" onClick={() => alert('To request free credits, contact support or upgrade your plan.')}>Request credits</Button>
+                      <Button variant="ghost" onClick={() => { void sweetAlert('Request credits', 'To request free credits, contact support or upgrade your plan.', 'info') }}>Request credits</Button>
                     </div>
                   </div>
                 )}

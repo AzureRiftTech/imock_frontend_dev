@@ -44,7 +44,7 @@ export default function SAPlans() {
     } catch (err) { console.error('Plan save failed', err); setError(err.response?.data?.error || 'Failed to save plan'); } finally { setSaving(false); }
   };
 
-  const del = async (id) => { if (!window.confirm('Delete this plan?')) return; try { await api.delete(`/super-admin/plans/${id}`); setPlans(prev => prev.filter(p => p.plan_id !== id)); } catch (err) { setError(err.response?.data?.error || 'Failed to delete plan'); } };
+  const del = async (id) => { if (!(await sweetConfirm('Delete this plan?'))) return; try { await api.delete(`/super-admin/plans/${id}`); setPlans(prev => prev.filter(p => p.plan_id !== id)); } catch (err) { setError(err.response?.data?.error || 'Failed to delete plan'); } };
 
   if (!user) return null;
   if (user.role !== 'super_admin') return (<Container><Paper sx={{p:3}}><Typography variant="h6">Forbidden</Typography><Typography>You do not have access to Super Admin pages.</Typography></Paper></Container>);

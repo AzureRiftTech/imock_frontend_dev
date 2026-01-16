@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { sweetConfirm, sweetAlert } from '@/lib/swal' 
 
 type UserDetails = {
   user_details_id?: number
@@ -158,6 +159,18 @@ export default function ProfilePage() {
 
   const uploadResumes = async (files: FileList | null) => {
     if (!files || files.length === 0) return
+
+    // client-side validation
+    if (files.length > 5) {
+      setError('You can upload up to 5 files at a time')
+      return
+    }
+    const hasNonPdf = Array.from(files).some((f) => !(f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')))
+    if (hasNonPdf) {
+      setError('Only PDF files are allowed')
+      return
+    }
+
     const formData = new FormData()
     Array.from(files).forEach((f) => formData.append('resumes', f))
 
@@ -178,7 +191,7 @@ export default function ProfilePage() {
   }
 
   const deleteResume = async (url: string) => {
-    const ok = window.confirm('Delete this resume?')
+    const ok = await sweetConfirm('Delete this resume?')
     if (!ok) return
     setDeletingResumeUrl(url)
     setError(null)
@@ -209,6 +222,7 @@ export default function ProfilePage() {
     }
   }
 
+  const uploadInputRef = React.useRef<HTMLInputElement | null>(null)
   const resumes = normalizeResumes(details)
   const connectedProviders = new Set(connections.map((c) => String(c.provider).toLowerCase()))
 
@@ -400,22 +414,31 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-zinc-600">Upload up to 5 files per request.</div>
-            <label className="inline-flex">
-              <input
-                type="file"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  void uploadResumes(e.target.files)
-                  // reset to allow re-upload same file name
-                  e.currentTarget.value = ''
-                }}
-              />
-              <Button type="button" variant="outline" disabled={uploading}>
-                {uploading ? 'Uploading…' : 'Upload resumes'}
-              </Button>
-            </label>
+            <div className="text-sm text-zinc-600">Upload up to 5 PDF files per request.</div>
+
+            {/* Hidden file input + Button that opens file chooser via ref (reliable across browsers) */}
+            <input
+              ref={(el) => (uploadInputRef.current = el)}
+              type="file"
+              multiple
+              accept=".pdf,application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                void uploadResumes(e.target.files)
+                // reset to allow re-upload same file name
+                e.currentTarget.value = ''
+              }}
+            />
+
+            <Button
+              type="button"
+              variant="outline"
+              disabled={uploading}
+              onClick={() => uploadInputRef.current?.click()}
+              aria-label="Upload resumes (PDF)"
+            >
+              {uploading ? 'Uploading…' : 'Upload resumes (PDF)'}
+            </Button>
           </div>
           {resumes.length === 0 ? (
             <div className="text-sm text-zinc-600">No resumes uploaded.</div>

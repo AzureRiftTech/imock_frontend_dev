@@ -6,6 +6,7 @@ import { getApiErrorMessage } from '@/lib/error'
 import { useAuth } from '@/context/auth-context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { sweetConfirm, sweetAlert } from '@/lib/swal' 
 
 type Plan = {
   plan_id: number
@@ -111,7 +112,7 @@ export default function SubscriptionsPage() {
   }, [load])
 
   const subscribe = async (plan: Plan) => {
-    const ok = window.confirm(`Subscribe to ${plan.name}?`)
+    const ok = await sweetConfirm(`Subscribe to ${plan.name}?`)
     if (!ok) return
     setSubscribingPlanId(plan.plan_id)
     setError(null)

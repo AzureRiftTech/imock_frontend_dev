@@ -38,6 +38,9 @@ type AnswerEvaluation = {
     technical_depth: number
     clarity: number
     completeness: number
+    relevance?: number
+    fluency?: number
+    confidence?: number
   }
 }
 
@@ -90,6 +93,8 @@ export default function MockInterviewPage() {
   const [isEvaluating, setIsEvaluating] = React.useState(false)
   const [interviewFinished, setInterviewFinished] = React.useState(false)
   const [overallStats, setOverallStats] = React.useState<any>(null)
+  const evaluationInFlightRef = React.useRef(false)
+  const lastEvaluationKeyRef = React.useRef<string | null>(null)
 
   // --- States for User Camera ---
   const [userStream, setUserStream] = React.useState<MediaStream | null>(null)
@@ -229,9 +234,12 @@ export default function MockInterviewPage() {
     }
   }
 
-  const handleNext = async () => {
-    // If we're already recording, stop it
-    if (isRecording) {
+  const handleNext = async (forceNext = false) => {
+    console.log('[MockInterview] handleNext called, currentIndex:', currentIndex, 'questions.length:', questions.length, 'forceNext:', forceNext)
+
+    // If we're already recording, stop it (unless forced to continue)
+    if (isRecording && !forceNext) {
+      console.log('[MockInterview] Still recording, stopping first...')
       await stopRecording()
       return // stopRecording will trigger evaluate -> handleNext
     }
@@ -243,36 +251,48 @@ export default function MockInterviewPage() {
 
     if (currentIndex < questions.length - 1) {
       const next = currentIndex + 1
+      console.log('[MockInterview] Moving to next question:', next)
       setCurrentIndex(next)
       if (questions[next]) {
         await speakQuestion(questions[next].question)
       }
     } else {
-      // Finished - Show results
+      console.log('[MockInterview] Interview finished, saving results and redirecting...')
       await azureAvatarManager.stopAvatar()
       stopCamera()
-      console.log('[MockInterview] All answers:', answers)
-      console.log('[MockInterview] All evaluations:', evaluations)
 
-      // Calculate overall stats
+      // Calculate final summary
       if (evaluations.length > 0) {
         const totalScore = evaluations.reduce((sum, e) => sum + e.evaluation.accuracy_score, 0)
         const avgScore = totalScore / evaluations.length
-        const avgTechnicalDepth = evaluations.reduce((sum, e) => sum + e.evaluation.technical_depth, 0) / evaluations.length
-        const avgClarity = evaluations.reduce((sum, e) => sum + e.evaluation.clarity, 0) / evaluations.length
-        const avgCompleteness = evaluations.reduce((sum, e) => sum + e.evaluation.completeness, 0) / evaluations.length
 
-        setOverallStats({
+        const summary = {
           average_score: Math.round(avgScore),
-          average_technical_depth: avgTechnicalDepth.toFixed(1),
-          average_clarity: avgClarity.toFixed(1),
-          average_completeness: avgCompleteness.toFixed(1),
+          average_technical_depth: (evaluations.reduce((sum, e) => sum + e.evaluation.technical_depth, 0) / evaluations.length).toFixed(1),
+          average_clarity: (evaluations.reduce((sum, e) => sum + e.evaluation.clarity, 0) / evaluations.length).toFixed(1),
+          average_completeness: (evaluations.reduce((sum, e) => sum + e.evaluation.completeness, 0) / evaluations.length).toFixed(1),
+          average_relevance: (evaluations.reduce((sum, e) => sum + (e.evaluation.relevance || 0), 0) / evaluations.length).toFixed(1),
+          average_fluency: (evaluations.reduce((sum, e) => sum + (e.evaluation.fluency || 0), 0) / evaluations.length).toFixed(1),
+          average_confidence: (evaluations.reduce((sum, e) => sum + (e.evaluation.confidence || 0), 0) / evaluations.length).toFixed(1),
           total_questions: evaluations.length
-        })
+        }
+
+        try {
+          // Save results to backend
+          await api.post('/answer-analysis/results', {
+            interview_id: params.interview_id,
+            evaluations: evaluations,
+            summary: summary
+          })
+          console.log('[MockInterview] Results saved successfully')
+        } catch (err) {
+          console.error('[MockInterview] Failed to save results:', err)
+          // Still redirect even if save fails, but maybe log it
+        }
       }
 
-      setInterviewFinished(true)
-      setCurrentIndex(-2) // Set to -2 to show results screen
+      // Redirect to separate result page
+      router.push(`/mock-interview/${params.interview_id}/result`)
     }
   }
 
@@ -329,6 +349,11 @@ export default function MockInterviewPage() {
     // Save answer with question
     if (finalAnswer || currentTranscript) {
       const completeAnswer = finalAnswer + (currentTranscript ? ' ' + currentTranscript : '')
+      const evaluationKey = `${currentIndex}:${completeAnswer.trim()}`
+      if (evaluationInFlightRef.current || lastEvaluationKeyRef.current === evaluationKey) {
+        console.warn('[MockInterview] Evaluation already in progress or done for this answer')
+        return
+      }
       const newAnswer: Answer = {
         question: questions[currentIndex].question,
         answer: completeAnswer,
@@ -341,14 +366,21 @@ export default function MockInterviewPage() {
       console.log('[MockInterview] Answer saved:', completeAnswer)
 
       // Evaluate answer immediately
-      await evaluateAnswer(newAnswer)
+      await evaluateAnswer(newAnswer, evaluationKey)
     }
 
     setCurrentTranscript('')
   }
 
   // Evaluate single answer using Gemini
-  const evaluateAnswer = async (answer: Answer) => {
+  const evaluateAnswer = async (answer: Answer, evaluationKey?: string) => {
+    const key = evaluationKey ?? `${currentIndex}:${answer.answer.trim()}`
+    if (evaluationInFlightRef.current || lastEvaluationKeyRef.current === key) {
+      console.warn('[MockInterview] Skipping duplicate evaluation')
+      return
+    }
+    evaluationInFlightRef.current = true
+    lastEvaluationKeyRef.current = key
     setIsEvaluating(true)
     try {
       const res = await api.post('/answer-analysis/evaluate', {
@@ -369,6 +401,7 @@ export default function MockInterviewPage() {
           setIsSpeaking(true)
           try {
             await azureAvatarManager.speak(evaluation.evaluation.verbal_feedback)
+            console.log('[MockInterview] response spoken successfully')
           } catch (e) {
             console.warn('[MockInterview] Feedback speak failed:', e)
           } finally {
@@ -376,16 +409,18 @@ export default function MockInterviewPage() {
           }
         }
 
-        // Automatic transition to next question
-        handleNext()
+        // Automatic transition to next question after feedback (or immediately if no feedback)
+        console.log('[MockInterview] Calling handleNext to move to next question...')
+        await handleNext(true) // Force next, don't check isRecording
       }
     } catch (error: any) {
       console.error('[MockInterview] Evaluation failed:', error)
       // Fallback: move to next even if evaluation failed
-      handleNext()
+      await handleNext(true) // Force next
     } finally {
       setIsEvaluating(false)
       setIsSpeaking(false) // Safeguard to ensure mic is re-enabled
+      evaluationInFlightRef.current = false
     }
   }
 
@@ -470,175 +505,14 @@ export default function MockInterviewPage() {
     )
   }
 
-  // 4. Results Screen (After Interview Completion)
-  if (currentIndex === -2 && interviewFinished) {
+  // 4. Loading State for Redirection
+  if (currentIndex === -2) {
     return (
-      <div className="mx-auto max-w-6xl py-8 px-4 space-y-8">
-        {/* Header */}
-        <div className="text-center space-y-4">
-          <div className="bg-green-50 p-6 rounded-full w-20 h-20 flex items-center justify-center mx-auto">
-            <Video className="w-10 h-10 text-green-600" />
-          </div>
-          <h1 className="text-3xl font-bold text-zinc-900">Interview Complete!</h1>
-          <p className="text-zinc-600">Here's your performance analysis</p>
-        </div>
-
-        {/* Overall Statistics */}
-        {overallStats && (
-          <div className="grid md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <p className="text-sm text-zinc-500 mb-1">Overall Score</p>
-                  <p className="text-4xl font-bold text-brand-600">{overallStats.average_score}%</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <p className="text-sm text-zinc-500 mb-1">Technical Depth</p>
-                  <p className="text-4xl font-bold text-blue-600">{overallStats.average_technical_depth}/10</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <p className="text-sm text-zinc-500 mb-1">Clarity</p>
-                  <p className="text-4xl font-bold text-purple-600">{overallStats.average_clarity}/10</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-center">
-                  <p className="text-sm text-zinc-500 mb-1">Completeness</p>
-                  <p className="text-4xl font-bold text-orange-600">{overallStats.average_completeness}/10</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Performance Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Performance by Question</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {evaluations.map((evaluation, idx) => (
-                <div key={idx} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-zinc-700">Q{idx + 1}</span>
-                    <span className="text-sm font-semibold text-brand-600">{evaluation.evaluation.accuracy_score}%</span>
-                  </div>
-                  <div className="w-full bg-zinc-200 rounded-full h-3">
-                    <div
-                      className="bg-gradient-to-r from-brand-500 to-brand-600 h-3 rounded-full transition-all duration-500"
-                      style={{ width: `${evaluation.evaluation.accuracy_score}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Detailed Feedback for Each Answer */}
-        <div className="space-y-6">
-          <h2 className="text-2xl font-bold text-zinc-900">Detailed Feedback</h2>
-          {evaluations.map((evaluation, idx) => (
-            <Card key={idx} className="border-l-4 border-l-brand-500">
-              <CardHeader>
-                <CardTitle className="text-lg">Question {idx + 1}</CardTitle>
-                <p className="text-sm text-zinc-600">{evaluation.question}</p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Score Breakdown */}
-                <div className="grid grid-cols-3 gap-4 p-4 bg-zinc-50 rounded-lg">
-                  <div className="text-center">
-                    <p className="text-xs text-zinc-500">Technical</p>
-                    <p className="text-lg font-bold text-blue-600">{evaluation.evaluation.technical_depth}/10</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-zinc-500">Clarity</p>
-                    <p className="text-lg font-bold text-purple-600">{evaluation.evaluation.clarity}/10</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-xs text-zinc-500">Complete</p>
-                    <p className="text-lg font-bold text-orange-600">{evaluation.evaluation.completeness}/10</p>
-                  </div>
-                </div>
-
-                {/* Your Answer vs Expected Answer Comparison */}
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <h4 className="font-semibold text-blue-800 mb-2">Your Answer</h4>
-                    <p className="text-sm text-zinc-700 leading-relaxed">{evaluation.userAnswer}</p>
-                  </div>
-                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                    <h4 className="font-semibold text-green-800 mb-2">Expected Answer (Reference)</h4>
-                    <p className="text-sm text-zinc-700 leading-relaxed">
-                      {questions[idx]?.example_answer || 'Not available'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Strengths */}
-                {evaluation.evaluation.strengths.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-green-700 mb-2">✓ Strengths</h4>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-zinc-700">
-                      {evaluation.evaluation.strengths.map((strength, i) => (
-                        <li key={i}>{strength}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Areas of Improvement */}
-                {evaluation.evaluation.areas_of_improvement.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-orange-700 mb-2">→ Areas of Improvement</h4>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-zinc-700">
-                      {evaluation.evaluation.areas_of_improvement.map((area, i) => (
-                        <li key={i}>{area}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Missing Key Points */}
-                {evaluation.evaluation.missing_key_points.length > 0 && (
-                  <div>
-                    <h4 className="font-semibold text-red-700 mb-2">✗ Missing Key Points</h4>
-                    <ul className="list-disc list-inside space-y-1 text-sm text-zinc-700">
-                      {evaluation.evaluation.missing_key_points.map((point, i) => (
-                        <li key={i}>{point}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Detailed Feedback */}
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                  <p className="text-sm text-zinc-800">{evaluation.evaluation.detailed_feedback}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex gap-4 justify-center pt-6">
-          <Button variant="outline" size="lg" onClick={() => router.back()}>
-            Back to Interviews
-          </Button>
-          <Button size="lg" onClick={() => window.location.reload()}>
-            Start New Interview
-          </Button>
+      <div className="flex-1 min-h-screen flex flex-col items-center justify-center bg-zinc-950 text-white gap-6">
+        <Loader2 className="w-16 h-16 animate-spin text-brand-500" />
+        <div className="space-y-2 text-center">
+          <h2 className="text-2xl font-bold tracking-tight">Finalizing Interview</h2>
+          <p className="text-zinc-500">Redirecting to your performance report...</p>
         </div>
       </div>
     )

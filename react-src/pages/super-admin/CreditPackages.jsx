@@ -44,7 +44,7 @@ export default function SACreditPackages() {
     } catch (err) { console.error('Package save failed', err); setError(err.response?.data?.error || 'Failed to save package'); } finally { setSaving(false); }
   };
 
-  const del = async (id) => { if (!window.confirm('Delete this package?')) return; try { await api.delete(`/super-admin/credit-packages/${id}`); setPackages(prev => prev.filter(p => p.package_id !== id)); } catch (err) { setError(err.response?.data?.error || 'Failed to delete package'); } };
+  const del = async (id) => { if (!(await sweetConfirm('Delete this package?'))) return; try { await api.delete(`/super-admin/credit-packages/${id}`); setPackages(prev => prev.filter(p => p.package_id !== id)); } catch (err) { setError(err.response?.data?.error || 'Failed to delete package'); } };
 
   if (!user) return null;
   if (user.role !== 'super_admin') return (<Container><Paper sx={{p:3}}><Typography variant="h6">Forbidden</Typography><Typography>You do not have access to Super Admin pages.</Typography></Paper></Container>);

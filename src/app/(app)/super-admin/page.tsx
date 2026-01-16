@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useAuth } from '@/context/auth-context'
 import { api } from '@/lib/api'
 import { getApiErrorMessage } from '@/lib/error'
+import { sweetConfirm, sweetAlert } from '@/lib/swal' 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -1065,7 +1066,7 @@ async function deleteUser(
   setSuccess: (v: string | null) => void,
   reload: () => Promise<void>
 ) {
-  const ok = window.confirm(`Delete user ${u.username}? This cannot be undone.`)
+  const ok = await sweetConfirm(`Delete user ${u.username}? This cannot be undone.`)
   if (!ok) return
   setError(null)
   setSuccess(null)
@@ -1084,7 +1085,7 @@ async function deletePlan(
   setSuccess: (v: string | null) => void,
   reload: () => Promise<void>
 ) {
-  const ok = window.confirm(`Delete plan ${p.name}?`)
+  const ok = await sweetConfirm(`Delete plan ${p.name}?`)
   if (!ok) return
   setError(null)
   setSuccess(null)
@@ -1103,7 +1104,7 @@ async function deleteCreditPackage(
   setSuccess: (v: string | null) => void,
   reload: () => Promise<void>
 ) {
-  const ok = window.confirm(`Delete credit package ${pkg.name}?`)
+  const ok = await sweetConfirm(`Delete credit package ${pkg.name}?`)
   if (!ok) return
   setError(null)
   setSuccess(null)
@@ -1122,7 +1123,7 @@ async function deleteCategory(
   setSuccess: (v: string | null) => void,
   reload: () => Promise<void>
 ) {
-  const ok = window.confirm(`Delete category ${cat.category_name}?`)
+  const ok = await sweetConfirm(`Delete category ${cat.category_name}?`)
   if (!ok) return
   setError(null)
   setSuccess(null)
@@ -1141,7 +1142,7 @@ async function deleteAiModel(
   setSuccess: (v: string | null) => void,
   reload: () => Promise<void>
 ) {
-  const ok = window.confirm(`Delete AI model ${model.model_name}?`)
+  const ok = await sweetConfirm(`Delete AI model ${model.model_name}?`)
   if (!ok) return
   setError(null)
   setSuccess(null)
