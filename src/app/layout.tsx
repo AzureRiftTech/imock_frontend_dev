@@ -23,7 +23,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${inter.variable} ${plusJakarta.variable}`}>
-      <body className="app-gradient min-h-screen">
+      <body className="min-h-screen">
         <Providers>{children}</Providers>
       </body>
     </html>

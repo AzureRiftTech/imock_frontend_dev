@@ -19,3 +19,40 @@ body {
     radial-gradient(900px 500px at 50% 110%, rgba(136, 70, 255, 0.10), transparent 60%),
     linear-gradient(to bottom, #ffffff, #fbfaff);
 }
+
+
+@keyframes bounce-pause {
+
+  0%,
+  20% {
+    transform: translateY(0);
+  }
+
+  40% {
+    transform: translateY(-25px);
+  }
+
+  50% {
+    transform: translateY(0);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* 4s total → bounce happens only in first 1s */
+.animate-bounce-pause {
+  animation: bounce-pause 4s ease-in-out infinite;
+}
+
+@layer utilities {
+  .mask-arc-top {
+    -webkit-mask: radial-gradient(farthest-side at top,
+        transparent 65%,
+        black 66%);
+    mask: radial-gradient(farthest-side at top,
+        transparent 65%,
+        black 66%);
+  }
+}
