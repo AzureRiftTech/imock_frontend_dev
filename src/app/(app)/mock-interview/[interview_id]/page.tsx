@@ -47,7 +47,7 @@ type AnswerEvaluation = {
 type GenerateResponse = {
   ok: boolean
   questions: Question[]
-  saved?: unknown
+  saved?: { session_token?: string }
 }
 
 type LipSyncResponse = {
@@ -70,6 +70,7 @@ export default function MockInterviewPage() {
   const [error, setError] = React.useState<string | null>(null)
   const [questions, setQuestions] = React.useState<Question[]>([])
   const [generated, setGenerated] = React.useState(false)
+  const [sessionToken, setSessionToken] = React.useState<string | null>(null)
   const attemptedRef = React.useRef(false)
 
   // --- States for Interview Session ---
@@ -90,6 +91,7 @@ export default function MockInterviewPage() {
 
   // Evaluation States
   const [evaluations, setEvaluations] = React.useState<AnswerEvaluation[]>([])
+  const evaluationsRef = React.useRef<AnswerEvaluation[]>([])
   const [isEvaluating, setIsEvaluating] = React.useState(false)
   const [interviewFinished, setInterviewFinished] = React.useState(false)
   const [overallStats, setOverallStats] = React.useState<any>(null)
@@ -135,13 +137,16 @@ export default function MockInterviewPage() {
       const res = await api.post('/mock-interview/generate-questions', {
         schedule_id: Number(interviewId),
         index: Number(resumeIndex),
-        question_count: countParam ? Number(countParam) : 5
-      })
+        question_count: countParam ? Number(countParam) : 5,
+        persist: true // persist questions and create a session token
+      });
 
-      const data = res.data as GenerateResponse
+      const data = res.data as GenerateResponse & { saved?: { session_token?: string } }
       if (data.questions && Array.isArray(data.questions)) {
         setQuestions(data.questions)
         setGenerated(true)
+        // store session token to attach to results later
+        if (data.saved && (data.saved.session_token)) setSessionToken(String(data.saved.session_token))
       } else {
         throw new Error('No questions returned from AI')
       }
@@ -261,28 +266,31 @@ export default function MockInterviewPage() {
       await azureAvatarManager.stopAvatar()
       stopCamera()
 
-      // Calculate final summary
-      if (evaluations.length > 0) {
-        const totalScore = evaluations.reduce((sum, e) => sum + e.evaluation.accuracy_score, 0)
-        const avgScore = totalScore / evaluations.length
+      // Calculate final summary (use latest canonical evaluations from ref to avoid missing last evaluation)
+      const finalEvaluations = evaluationsRef.current && evaluationsRef.current.length ? evaluationsRef.current : evaluations
+      console.log('[MockInterview] Saving final evaluations count:', finalEvaluations.length)
+      if (finalEvaluations.length > 0) {
+        const totalScore = finalEvaluations.reduce((sum, e) => sum + e.evaluation.accuracy_score, 0)
+        const avgScore = totalScore / finalEvaluations.length
 
         const summary = {
           average_score: Math.round(avgScore),
-          average_technical_depth: (evaluations.reduce((sum, e) => sum + e.evaluation.technical_depth, 0) / evaluations.length).toFixed(1),
-          average_clarity: (evaluations.reduce((sum, e) => sum + e.evaluation.clarity, 0) / evaluations.length).toFixed(1),
-          average_completeness: (evaluations.reduce((sum, e) => sum + e.evaluation.completeness, 0) / evaluations.length).toFixed(1),
-          average_relevance: (evaluations.reduce((sum, e) => sum + (e.evaluation.relevance || 0), 0) / evaluations.length).toFixed(1),
-          average_fluency: (evaluations.reduce((sum, e) => sum + (e.evaluation.fluency || 0), 0) / evaluations.length).toFixed(1),
-          average_confidence: (evaluations.reduce((sum, e) => sum + (e.evaluation.confidence || 0), 0) / evaluations.length).toFixed(1),
-          total_questions: evaluations.length
+          average_technical_depth: (finalEvaluations.reduce((sum, e) => sum + e.evaluation.technical_depth, 0) / finalEvaluations.length).toFixed(1),
+          average_clarity: (finalEvaluations.reduce((sum, e) => sum + e.evaluation.clarity, 0) / finalEvaluations.length).toFixed(1),
+          average_completeness: (finalEvaluations.reduce((sum, e) => sum + e.evaluation.completeness, 0) / finalEvaluations.length).toFixed(1),
+          average_relevance: (finalEvaluations.reduce((sum, e) => sum + (e.evaluation.relevance || 0), 0) / finalEvaluations.length).toFixed(1),
+          average_fluency: (finalEvaluations.reduce((sum, e) => sum + (e.evaluation.fluency || 0), 0) / finalEvaluations.length).toFixed(1),
+          average_confidence: (finalEvaluations.reduce((sum, e) => sum + (e.evaluation.confidence || 0), 0) / finalEvaluations.length).toFixed(1),
+          total_questions: finalEvaluations.length
         }
 
         try {
-          // Save results to backend
+          // Save results to backend (attach session token if available)
           await api.post('/answer-analysis/results', {
             interview_id: params.interview_id,
-            evaluations: evaluations,
-            summary: summary
+            evaluations: finalEvaluations,
+            summary: summary,
+            session_token: sessionToken
           })
           console.log('[MockInterview] Results saved successfully')
         } catch (err) {
@@ -393,7 +401,11 @@ export default function MockInterviewPage() {
 
       if (res.data.success) {
         const evaluation = res.data.data
-        setEvaluations(prev => [...prev, evaluation])
+        setEvaluations(prev => {
+          const next = [...prev, evaluation]
+          evaluationsRef.current = next
+          return next
+        })
         console.log('[MockInterview] Answer evaluated:', evaluation.evaluation.accuracy_score)
 
         // Dynaimc flow: Speak verbal acknowledgment/feedback before moving on
