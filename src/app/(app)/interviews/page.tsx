@@ -39,6 +39,19 @@ type Interview = {
   position_name?: string | null
 }
 
+type InterviewResult = {
+  result_id?: number
+  id?: number  // Backend returns 'id' field
+  interview_id: number
+  session_token: string
+  completed_at: string
+  overall_score?: number | null
+  detailed_feedback?: string | null
+  strengths?: string | null
+  improvements?: string | null
+  [key: string]: unknown
+}
+
 type InterviewFormState = {
   company_name: string
   scheduled_at: string
@@ -107,6 +120,90 @@ function Modal({
         <div className="px-6 py-5">{children}</div>
       </div>
     </div>
+  )
+}
+
+function PastResultsModal({
+  open,
+  interview,
+  results,
+  onClose,
+}: {
+  open: boolean
+  interview: Interview | null
+  results: InterviewResult[]
+  onClose: () => void
+}) {
+  const router = useRouter()
+
+  const viewResultDetail = (result: InterviewResult) => {
+    if (interview) {
+      const resultId = result.result_id || result.id
+      router.push(`/mock-interview/${interview.interview_id}/result/${resultId}`)
+    }
+  }
+
+  return (
+    <Modal open={open} title="Past Interview Results" onClose={onClose}>
+      <div className="space-y-4">
+        {interview && (
+          <div className="pb-3 border-b border-zinc-200">
+            <div className="text-sm font-semibold text-zinc-900">{interview.company_name}</div>
+            <div className="text-sm text-zinc-600">{interview.position_name || interview.position}</div>
+          </div>
+        )}
+
+        {results.length === 0 ? (
+          <div className="text-sm text-zinc-600 py-4">No past interview results found.</div>
+        ) : (
+          <div className="space-y-3">
+            {results.map((result) => (
+              <div
+                key={result.result_id || result.id}
+                className="rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-zinc-900">
+                      Session: {result.session_token.slice(0, 12)}...
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-600">
+                      {formatDisplayDate(result.completed_at)}
+                    </div>
+                    {result.overall_score !== null && result.overall_score !== undefined && (
+                      <div className="mt-2 text-sm text-zinc-700">
+                        Score: <span className="font-semibold">{result.overall_score}</span>
+                      </div>
+                    )}
+                    {result.strengths && (
+                      <div className="mt-2 text-xs text-emerald-700">
+                        Strengths: {result.strengths.slice(0, 80)}{result.strengths.length > 80 ? '...' : ''}
+                      </div>
+                    )}
+                    {result.improvements && (
+                      <div className="mt-1 text-xs text-amber-700">
+                        Improvements: {result.improvements.slice(0, 80)}{result.improvements.length > 80 ? '...' : ''}
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => viewResultDetail(result)}
+                    className="bg-brand-600 hover:bg-brand-700 text-white"
+                  >
+                    View Details
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 pt-4 border-t border-zinc-200">
+          <Button variant="secondary" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
@@ -180,10 +277,15 @@ function MockInterviewModal({
     }
   }
 
-  const handleStart = (withAvatar: boolean = true) => {
+  const handleStart = (withAvatar: boolean = true, useAISpeech: boolean = false) => {
     if (!interview || selectedIndex === null) return
     const base = `/mock-interview/${interview.interview_id}`
-    const path = withAvatar ? `${base}?index=${selectedIndex}&count=${questionCount}` : `${base}/without_avatar?index=${selectedIndex}&count=${questionCount}`
+    let path = `${base}?index=${selectedIndex}&count=${questionCount}`
+    if (!withAvatar && useAISpeech) {
+      path = `${base}/without_avatar_with_ai_speech?index=${selectedIndex}&count=${questionCount}`
+    } else if (!withAvatar) {
+      path = `${base}/without_avatar?index=${selectedIndex}&count=${questionCount}`
+    }
     router.push(path)
   }
 
@@ -272,6 +374,9 @@ function MockInterviewModal({
           <Button variant="ghost" onClick={() => handleStart(false)} disabled={selectedIndex === null || uploading || (loading && tab === 'select')}>
             Start Interview (No Avatar)
           </Button>
+          <Button variant="outline" onClick={() => handleStart(false, true)} disabled={selectedIndex === null || uploading || (loading && tab === 'select')}>
+            Start Interview (No Avatar, AI Speech)
+          </Button>
         </div>
       </div>
     </Modal>
@@ -288,6 +393,7 @@ export default function InterviewsPage() {
 
   const [categories, setCategories] = React.useState<JobCategory[]>([])
   const [interviews, setInterviews] = React.useState<Interview[]>([])
+  const [interviewResults, setInterviewResults] = React.useState<Map<number, InterviewResult[]>>(new Map())
 
   const [form, setForm] = React.useState<InterviewFormState>({
     company_name: '',
@@ -301,6 +407,7 @@ export default function InterviewsPage() {
 
   const [editing, setEditing] = React.useState<Interview | null>(null)
   const [mockInterviewTarget, setMockInterviewTarget] = React.useState<Interview | null>(null)
+  const [viewingResults, setViewingResults] = React.useState<Interview | null>(null)
 
   const [categoryModalOpen, setCategoryModalOpen] = React.useState(false)
   const [newCategoryName, setNewCategoryName] = React.useState('')
@@ -315,7 +422,29 @@ export default function InterviewsPage() {
         api.get('/interviews', { params: userId ? { user_id: userId } : undefined }),
       ])
       setCategories((catsRes.data as JobCategory[]) || [])
-      setInterviews((interviewsRes.data as Interview[]) || [])
+      const loadedInterviews = (interviewsRes.data as Interview[]) || []
+      setInterviews(loadedInterviews)
+
+      // Fetch results for all interviews
+      const resultsMap = new Map<number, InterviewResult[]>()
+      await Promise.all(
+        loadedInterviews.map(async (interview) => {
+          try {
+            const resultsRes = await api.get(`/answer-analysis/results/${interview.interview_id}`)
+            // Backend returns single result object in 'data' field, wrap it in array
+            const singleResult = resultsRes.data?.data as InterviewResult | null
+            if (singleResult) {
+              resultsMap.set(interview.interview_id, [singleResult])
+            }
+          } catch (err: any) {
+            // Ignore 404 errors (no results yet for this interview)
+            if (err?.response?.status !== 404) {
+              console.error(`Failed to load results for interview ${interview.interview_id}`, err)
+            }
+          }
+        })
+      )
+      setInterviewResults(resultsMap)
     } catch (err) {
       setError(getApiErrorMessage(err) || 'Failed to load interviews')
     } finally {
@@ -576,6 +705,8 @@ export default function InterviewsPage() {
                     onEdit={() => openEdit(row)}
                     onDelete={() => deleteInterview(row)}
                     onStartMock={() => setMockInterviewTarget(row)}
+                    onViewResults={() => setViewingResults(row)}
+                    hasResults={interviewResults.has(row.interview_id)}
                   />
                 ))}
               </div>
@@ -601,6 +732,8 @@ export default function InterviewsPage() {
                     onEdit={() => openEdit(row)}
                     onDelete={() => deleteInterview(row)}
                     onStartMock={() => setMockInterviewTarget(row)}
+                    onViewResults={() => setViewingResults(row)}
+                    hasResults={interviewResults.has(row.interview_id)}
                   />
                 ))}
               </div>
@@ -749,6 +882,13 @@ export default function InterviewsPage() {
         </form>
       </Modal>
 
+      <PastResultsModal
+        open={Boolean(viewingResults)}
+        interview={viewingResults}
+        results={viewingResults ? interviewResults.get(viewingResults.interview_id) || [] : []}
+        onClose={() => setViewingResults(null)}
+      />
+
       <MockInterviewModal
         open={Boolean(mockInterviewTarget)}
         interview={mockInterviewTarget}
@@ -763,11 +903,15 @@ function InterviewRow({
   onEdit,
   onDelete,
   onStartMock,
+  onViewResults,
+  hasResults,
 }: {
   row: Interview
   onEdit: () => void
   onDelete: () => void
   onStartMock: () => void
+  onViewResults: () => void
+  hasResults: boolean
 }) {
   return (
     <div className="rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm">
@@ -781,7 +925,12 @@ function InterviewRow({
           <div className="mt-1 text-xs text-zinc-600">{formatDisplayDate(row.scheduled_at)}</div>
           {row.status ? <div className="mt-2 text-xs text-zinc-600">Status: {row.status}</div> : null}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {hasResults && (
+            <Button onClick={onViewResults} size="sm" variant="outline" className="border-emerald-600 text-emerald-700 hover:bg-emerald-50">
+              Past Interview Result
+            </Button>
+          )}
           <Button onClick={onStartMock} size="sm" className="bg-brand-600 hover:bg-brand-700 text-white">
             Mock Interview
           </Button>

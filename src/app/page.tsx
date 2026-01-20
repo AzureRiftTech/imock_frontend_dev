@@ -79,10 +79,18 @@
 
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 export default function HomePage() {
+
+  const router = useRouter();
+
+  const handleNavigate = () => {
+    router.push("/login"); // 👈 login page route
+  };
+
   return (
-    <section className="mx-auto max-w-7xl px-4 py-16 sm:py-20 ">
+    <section className="mx-auto max-w-7xl px-4 py-16 sm:py-20">
       {/* radial glow */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute left-0 lg:left-1/2 top-0 h-[220px] w-[720px] -translate-x-1/2 rounded-full bg-purple-400/80 blur-[140px]" />
@@ -125,7 +133,7 @@ export default function HomePage() {
           <div className="flex flex-col justify-center items-center gap-10 w-full lg:w-[70%] mt-10">
             <p className="text-xl md:text-5xl text-center font-semibold">Land Your <span className="text-[#8D38DD]">Dream Gob </span>With <br />Confidence</p>
             <p className="text-center  text-sm md:text-lg">Prepare for real interviews using our AI-powered mock interview platform designed to adapt to your resume and role. Practice real-world questions, receive instant feedback, and improve your performance with every session.</p>
-            <button className="rounded-full px-7 py-3 bg-[#8D38DD] text-white shadow-[0_20px_40px_rgba(168,85,247,0.25)]">Start new session</button>
+            <button onClick={handleNavigate} className="rounded-full px-7 py-3 bg-[#8D38DD] text-white shadow-[0_20px_40px_rgba(168,85,247,0.25)]">Start new session</button>
           </div>
 
           <div className=" relative flex flex-col items-center gap-20 w-full lg:w-[20%] ml-5">

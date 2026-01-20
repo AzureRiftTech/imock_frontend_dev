@@ -1,7 +1,10 @@
-import type { Metadata } from 'next'
+'use client'
+
 import { Inter, Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
+import Header from '@/components/Header'
+import { usePathname } from 'next/navigation'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -13,17 +16,17 @@ const plusJakarta = Plus_Jakarta_Sans({
   variable: '--font-plus-jakarta',
 })
 
-export const metadata: Metadata = {
-  title: 'iMock',
-  description: 'AI-powered interview practice and insights.',
-}
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const pathname = usePathname()
+  const hideHeader = pathname === '/user-details'
+
   return (
     <html lang="en" className={`${inter.variable} ${plusJakarta.variable}`}>
       <body className="min-h-screen">
+        {!hideHeader && <Header />}
         <Providers>{children}</Providers>
       </body>
     </html>

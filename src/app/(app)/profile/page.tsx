@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { api } from '@/lib/api'
+import { api, getApiBaseUrl } from '@/lib/api'
 import { getApiErrorMessage } from '@/lib/error'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,6 +24,11 @@ type UserDetails = {
   linkedin?: string
   github?: string
   resumes?: string[] | string | null
+  university_name?: string
+  college_name?: string
+  branch?: string
+  skills?: string[] | string | null
+  experience?: string
   [key: string]: unknown
 }
 
@@ -69,6 +74,22 @@ function normalizeResumes(details: UserDetails | null): string[] {
   return []
 }
 
+function normalizeSkills(details: UserDetails | null): string[] {
+  if (!details) return []
+  const s = details.skills
+  if (!s) return []
+  if (Array.isArray(s)) return s.map(String)
+  if (typeof s === 'string') {
+    try {
+      const parsed = JSON.parse(s)
+      return Array.isArray(parsed) ? parsed.map(String) : [String(parsed)]
+    } catch {
+      return [s]
+    }
+  }
+  return []
+}
+
 function formatDate(value: string): string {
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return value
@@ -96,6 +117,8 @@ export default function ProfilePage() {
   const [uploading, setUploading] = React.useState(false)
   const [deletingResumeUrl, setDeletingResumeUrl] = React.useState<string | null>(null)
   const [purchasingPackageId, setPurchasingPackageId] = React.useState<number | null>(null)
+  const [skillInput, setSkillInput] = React.useState('')
+  const [skills, setSkills] = React.useState<string[]>([])
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -117,6 +140,7 @@ export default function ProfilePage() {
       setSubscription((subRes.data?.subscription as Subscription) || null)
       setInvoices((invRes.data?.invoices as Invoice[]) || [])
       setConnections((connsRes.data?.connections as { provider: string }[]) || [])
+      setSkills(normalizeSkills((detailsRes.data?.details as UserDetails) || null))
     } catch (err) {
       setError(getApiErrorMessage(err) || 'Failed to load profile')
     } finally {
@@ -132,6 +156,17 @@ export default function ProfilePage() {
     setDetails((prev) => ({ ...(prev || {}), [key]: value }))
   }
 
+  const addSkill = () => {
+    if (skillInput.trim() && !skills.includes(skillInput.trim())) {
+      setSkills((prev) => [...prev, skillInput.trim()])
+      setSkillInput('')
+    }
+  }
+
+  const removeSkill = (skill: string) => {
+    setSkills((prev) => prev.filter((s) => s !== skill))
+  }
+
   const saveDetails = async () => {
     setSaving(true)
     setError(null)
@@ -139,6 +174,7 @@ export default function ProfilePage() {
     try {
       const payload: Record<string, unknown> = { ...(details || {}) }
       payload.resumes = normalizeResumes(details)
+      payload.skills = JSON.stringify(skills)
       delete payload.created_at
       delete payload.updated_at
 
@@ -225,6 +261,7 @@ export default function ProfilePage() {
   const uploadInputRef = React.useRef<HTMLInputElement | null>(null)
   const resumes = normalizeResumes(details)
   const connectedProviders = new Set(connections.map((c) => String(c.provider).toLowerCase()))
+  const currentRole = details?.current_role || ''
 
   return (
     <div className="space-y-6">
@@ -337,15 +374,188 @@ export default function ProfilePage() {
                 onChange={(e) => updateDetailsField('full_name', e.target.value)}
               />
             </div>
-            <div className="grid gap-2 md:col-span-2">
-              <Label htmlFor="headline">Headline</Label>
-              <Input
-                id="headline"
-                value={String(details?.headline || '')}
-                onChange={(e) => updateDetailsField('headline', e.target.value)}
-                placeholder="e.g., Frontend Engineer · React · Next.js"
-              />
-            </div>
+
+            {/* Student-specific fields */}
+            {currentRole === 'Student' && (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="university_name">University name</Label>
+                  <Input
+                    id="university_name"
+                    value={String(details?.university_name || '')}
+                    onChange={(e) => updateDetailsField('university_name', e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="college_name">College name</Label>
+                  <Input
+                    id="college_name"
+                    value={String(details?.college_name || '')}
+                    onChange={(e) => updateDetailsField('college_name', e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="branch">Branch</Label>
+                  <Input
+                    id="branch"
+                    value={String(details?.branch || '')}
+                    onChange={(e) => updateDetailsField('branch', e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="year_of_passout">Year of passout</Label>
+                  <Input
+                    id="year_of_passout"
+                    value={String(details?.year_of_passout || '')}
+                    onChange={(e) => updateDetailsField('year_of_passout', e.target.value)}
+                    placeholder="2025"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="contact_number">Contact number</Label>
+                  <Input
+                    id="contact_number"
+                    value={String(details?.contact_number || '')}
+                    onChange={(e) => updateDetailsField('contact_number', e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Fresher-specific fields */}
+            {currentRole === 'Fresher' && (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="headline">Aspiring role</Label>
+                  <Input
+                    id="headline"
+                    value={String(details?.headline || '')}
+                    onChange={(e) => updateDetailsField('headline', e.target.value)}
+                    placeholder="e.g., Software Developer"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="contact_number">Contact number</Label>
+                  <Input
+                    id="contact_number"
+                    value={String(details?.contact_number || '')}
+                    onChange={(e) => updateDetailsField('contact_number', e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2 md:col-span-2">
+                  <Label htmlFor="skills">Skills</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="skills"
+                      value={skillInput}
+                      onChange={(e) => setSkillInput(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          addSkill()
+                        }
+                      }}
+                      placeholder="Type a skill and press Enter"
+                    />
+                    <Button type="button" onClick={addSkill} variant="outline">
+                      Add
+                    </Button>
+                  </div>
+                  {skills.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {skills.map((skill) => (
+                        <span
+                          key={skill}
+                          className="inline-flex items-center gap-1 bg-brand-100 text-brand-800 px-3 py-1 rounded-full text-sm"
+                        >
+                          {skill}
+                          <button
+                            type="button"
+                            onClick={() => removeSkill(skill)}
+                            className="hover:text-brand-900"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Professional-specific fields */}
+            {currentRole === 'Professional' && (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="headline">Current role</Label>
+                  <Input
+                    id="headline"
+                    value={String(details?.headline || '')}
+                    onChange={(e) => updateDetailsField('headline', e.target.value)}
+                    placeholder="e.g., Senior Software Engineer"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="contact_number">Contact number</Label>
+                  <Input
+                    id="contact_number"
+                    value={String(details?.contact_number || '')}
+                    onChange={(e) => updateDetailsField('contact_number', e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="experience">Experience</Label>
+                  <Input
+                    id="experience"
+                    value={String(details?.experience || '')}
+                    onChange={(e) => updateDetailsField('experience', e.target.value)}
+                    placeholder="e.g., 3 years 6 months"
+                  />
+                </div>
+                <div className="grid gap-2 md:col-span-2">
+                  <Label htmlFor="skills">Skills</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="skills"
+                      value={skillInput}
+                      onChange={(e) => setSkillInput(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          addSkill()
+                        }
+                      }}
+                      placeholder="Type a skill and press Enter"
+                    />
+                    <Button type="button" onClick={addSkill} variant="outline">
+                      Add
+                    </Button>
+                  </div>
+                  {skills.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {skills.map((skill) => (
+                        <span
+                          key={skill}
+                          className="inline-flex items-center gap-1 bg-brand-100 text-brand-800 px-3 py-1 rounded-full text-sm"
+                        >
+                          {skill}
+                          <button
+                            type="button"
+                            onClick={() => removeSkill(skill)}
+                            className="hover:text-brand-900"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Common fields */}
             <div className="grid gap-2 md:col-span-2">
               <Label htmlFor="bio">Bio</Label>
               <textarea
@@ -373,15 +583,6 @@ export default function ProfilePage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="year_of_passout">Year of passout</Label>
-              <Input
-                id="year_of_passout"
-                value={String(details?.year_of_passout || '')}
-                onChange={(e) => updateDetailsField('year_of_passout', e.target.value)}
-                placeholder="2025"
-              />
-            </div>
-            <div className="grid gap-2">
               <Label htmlFor="linkedin">LinkedIn</Label>
               <Input
                 id="linkedin"
@@ -390,7 +591,7 @@ export default function ProfilePage() {
                 placeholder="https://linkedin.com/in/..."
               />
             </div>
-            <div className="grid gap-2 md:col-span-2">
+            <div className="grid gap-2">
               <Label htmlFor="github">GitHub</Label>
               <Input
                 id="github"
@@ -418,7 +619,7 @@ export default function ProfilePage() {
 
             {/* Hidden file input + Button that opens file chooser via ref (reliable across browsers) */}
             <input
-              ref={(el) => (uploadInputRef.current = el)}
+              ref={(el) => { uploadInputRef.current = el }}
               type="file"
               multiple
               accept=".pdf,application/pdf"
@@ -444,9 +645,11 @@ export default function ProfilePage() {
             <div className="text-sm text-zinc-600">No resumes uploaded.</div>
           ) : (
             <div className="space-y-2">
-              {resumes.map((url) => (
+              {resumes.map((url) => {
+                const fullUrl = url.startsWith('http') ? url : `${getApiBaseUrl()}${url}`
+                return (
                 <div key={url} className="flex flex-col gap-2 rounded-2xl border border-white/70 bg-white/70 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <a className="text-sm font-semibold text-brand-700 underline" href={url} target="_blank" rel="noreferrer">
+                  <a className="text-sm font-semibold text-brand-700 underline" href={fullUrl} target="_blank" rel="noreferrer">
                     {url}
                   </a>
                   <Button
@@ -458,7 +661,7 @@ export default function ProfilePage() {
                     {deletingResumeUrl === url ? 'Deleting…' : 'Delete'}
                   </Button>
                 </div>
-              ))}
+              )})}  
             </div>
           )}
         </CardContent>

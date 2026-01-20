@@ -17,6 +17,7 @@ export interface User {
 export interface AuthResult {
   token: string
   user: User
+  hasDetails?: boolean
 }
 
 interface AuthContextValue {
@@ -62,7 +63,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const data = res.data as AuthResult
     window.localStorage.setItem('token', data.token)
     setUser(data.user)
-    return data
+    
+    // Check if user details exist
+    try {
+      const detailsRes = await api.get('/user-details/me')
+      const hasDetails = Boolean(detailsRes?.data?.details)
+      return { ...data, hasDetails }
+    } catch {
+      return { ...data, hasDetails: false }
+    }
   }
 
   const register = async (username: string, email: string, password: string): Promise<AuthResult> => {
@@ -70,7 +79,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const data = res.data as AuthResult
     window.localStorage.setItem('token', data.token)
     setUser(data.user)
-    return data
+    
+    // Check if user details exist (for new registrations, usually false)
+    try {
+      const detailsRes = await api.get('/user-details/me')
+      const hasDetails = Boolean(detailsRes?.data?.details)
+      return { ...data, hasDetails }
+    } catch {
+      return { ...data, hasDetails: false }
+    }
   }
 
   const logout = () => {
