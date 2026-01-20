@@ -4,11 +4,13 @@ import * as React from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { getApiErrorMessage } from '@/lib/error'
-import { azureAvatarManager, type AvatarConfig } from '@/lib/azureAvatar'
-import { speechRecognitionManager } from '@/lib/speechRecognition'
+import { browserSpeechRecognitionManager } from '@/lib/browserSpeechRecognition'
+import Logo from '@/assets/react.svg'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Play, Square, ChevronRight, Eye, Video, Mic, MicOff, Camera, CameraOff, User } from 'lucide-react'
+
+// ... (types unchanged) ---
 
 type Question = {
   question: string
@@ -41,6 +43,7 @@ type AnswerEvaluation = {
     relevance?: number
     fluency?: number
     confidence?: number
+    verbal_feedback?: string
   }
 }
 
@@ -50,13 +53,7 @@ type GenerateResponse = {
   saved?: { session_token?: string }
 }
 
-type LipSyncResponse = {
-  task_id: string
-  status: string
-  generated: string[]
-}
-
-export default function MockInterviewPage() {
+export default function MockInterviewNoAvatarPage() {
   const params = useParams()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -75,12 +72,8 @@ export default function MockInterviewPage() {
 
   // --- States for Interview Session ---
   const [currentIndex, setCurrentIndex] = React.useState<number>(-1) // -1 = not started
-  const [avatarLoading, setAvatarLoading] = React.useState(false)
-  const [avatarError, setAvatarError] = React.useState<string | null>(null)
-  const [showAnswer, setShowAnswer] = React.useState(false)
   const [isSpeaking, setIsSpeaking] = React.useState(false)
-  const videoContainerRef = React.useRef<HTMLDivElement>(null)
-  const avatarInitializedRef = React.useRef(false)
+  const [showAnswer, setShowAnswer] = React.useState(false)
 
   // Answer Recording States
   const [isRecording, setIsRecording] = React.useState(false)
@@ -165,66 +158,29 @@ export default function MockInterviewPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Cleanup avatar, recognition and camera on unmount
+  // Cleanup recognition and camera on unmount
   React.useEffect(() => {
     return () => {
-      if (azureAvatarManager.isAvatarConnected()) {
-        azureAvatarManager.stopAvatar()
-      }
-      if (speechRecognitionManager.isActive()) {
-        speechRecognitionManager.stopRecognition()
+      if (browserSpeechRecognitionManager.isActive()) {
+        browserSpeechRecognitionManager.stopRecognition()
       }
       stopCamera()
     }
   }, [])
 
-  // Initialize Avatar Connection
-  const initializeAvatar = async () => {
-    if (!videoContainerRef.current || avatarInitializedRef.current) return
-
-    setAvatarLoading(true)
-    setAvatarError(null)
-
-    try {
-      const config: AvatarConfig = {
-        character: 'lisa',
-        style: 'casual-sitting',
-        voiceName: 'en-US-AvaMultilingualNeural'
-      }
-
-      await azureAvatarManager.startAvatar(
-        config,
-        videoContainerRef.current,
-        (error) => setAvatarError(error)
-      )
-
-      avatarInitializedRef.current = true
-      setAvatarLoading(false)
-      console.log('[MockInterview] Avatar initialized')
-    } catch (error: any) {
-      console.error('[MockInterview] Avatar init failed:', error)
-      setAvatarError(error.message || 'Failed to initialize avatar')
-      setAvatarLoading(false)
-    }
-  }
-
-  // Speak Question through Avatar
-  const speakQuestion = async (questionText: string) => {
-    if (!azureAvatarManager.isAvatarConnected()) {
-      console.warn('[MockInterview] Avatar not connected, initializing...')
-      await initializeAvatar()
-    }
-
+  // Use browser TTS to speak text
+  const speakText = async (text: string) => {
+    if (!('speechSynthesis' in window)) return
     setIsSpeaking(true)
-    setAvatarError(null)
-
     try {
-      await azureAvatarManager.speak(questionText)
-      console.log('[MockInterview] Question spoken successfully')
-      setIsSpeaking(false)
-    } catch (error: any) {
-      console.error('[MockInterview] Speak failed:', error)
-      setAvatarError(error.message || 'Failed to speak question')
+      const utter = new SpeechSynthesisUtterance(text)
+      utter.lang = 'en-US'
+      utter.onend = () => setIsSpeaking(false)
+      utter.onerror = () => setIsSpeaking(false)
+      window.speechSynthesis.cancel()
+      window.speechSynthesis.speak(utter)
+    } catch (e) {
+      console.warn('[MockInterview] TTS failed:', e)
       setIsSpeaking(false)
     }
   }
@@ -233,9 +189,8 @@ export default function MockInterviewPage() {
   const handleStartSession = async () => {
     setCurrentIndex(0)
     await startCamera() // Request camera access immediately
-    await initializeAvatar()
     if (questions[0]) {
-      speakQuestion(questions[0].question)
+      speakText(questions[0].question)
     }
   }
 
@@ -259,17 +214,16 @@ export default function MockInterviewPage() {
       console.log('[MockInterview] Moving to next question:', next)
       setCurrentIndex(next)
       if (questions[next]) {
-        await speakQuestion(questions[next].question)
+        await speakText(questions[next].question)
       }
     } else {
       console.log('[MockInterview] Interview finished, saving results and redirecting...')
-      await azureAvatarManager.stopAvatar()
       stopCamera()
 
       // Calculate final summary (use latest canonical evaluations from ref to avoid missing last evaluation)
       const finalEvaluations = evaluationsRef.current && evaluationsRef.current.length ? evaluationsRef.current : evaluations
       console.log('[MockInterview] Saving final evaluations count:', finalEvaluations.length)
-      // Prepare holders for saved result so they are accessible after the block
+      // Prepare holders for saved result so they are accessible after the if-block
       let savedResult: any = null
       let savedId: number | null = null
 
@@ -305,13 +259,14 @@ export default function MockInterviewPage() {
         }
       }
 
-      // Show finalizing state then decide where to redirect
+      // Show finalizing state then redirect to result page (prefer query param)
       setCurrentIndex(-2)
 
-      // If backend returned an id use it. Otherwise, try to lookup by session_token when available
+      // If backend returned an id use it. Otherwise, if we have a session token, try to look up the saved row by session_token.
       let resultId = savedId
       if (!resultId && sessionToken) {
         try {
+          // This endpoint supports an optional session_token query param to find the matching result
           const lookup = await api.get(`/answer-analysis/results/${params.interview_id}`, { params: { session_token: sessionToken } })
           if (lookup.data && lookup.data.success && lookup.data.data && lookup.data.data.id) {
             resultId = lookup.data.data.id
@@ -332,25 +287,21 @@ export default function MockInterviewPage() {
 
   const handleRetrySpeak = () => {
     if (questions[currentIndex]) {
-      speakQuestion(questions[currentIndex].question)
+      speakText(questions[currentIndex].question)
     }
   }
 
   // Start recording user's answer
   const startRecording = async () => {
     try {
-      // Get speech config from backend
-      const res = await api.get('/azure-avatar/speech-config')
-      const { subscriptionKey, region } = res.data.data
-
       setIsRecording(true)
       setCurrentTranscript('')
       setFinalAnswer('')
       setRecordingError(null)
 
-      await speechRecognitionManager.startRecognition(
-        subscriptionKey,
-        region,
+      await browserSpeechRecognitionManager.startRecognition(
+        undefined,
+        undefined,
         (result) => {
           if (result.isFinal) {
             // Append final result to answer
@@ -367,17 +318,17 @@ export default function MockInterviewPage() {
         }
       )
 
-      console.log('[MockInterview] Recording started')
+      console.log('[MockInterview] Recording started (browser)')
     } catch (error: any) {
       console.error('[MockInterview] Recording failed:', error)
-      setRecordingError(error.message || 'Failed to start recording')
+      setRecordingError(error.message || 'Failed to start recording (browser)')
       setIsRecording(false)
     }
   }
 
   // Stop recording and save answer
   const stopRecording = async () => {
-    await speechRecognitionManager.stopRecognition()
+    await browserSpeechRecognitionManager.stopRecognition()
     setIsRecording(false)
 
     // Save answer with question
@@ -406,7 +357,7 @@ export default function MockInterviewPage() {
     setCurrentTranscript('')
   }
 
-  // Evaluate single answer using Gemini
+  // Evaluate single answer using Gemini (and speak verbal feedback via TTS)
   const evaluateAnswer = async (answer: Answer, evaluationKey?: string) => {
     const key = evaluationKey ?? `${currentIndex}:${answer.answer.trim()}`
     if (evaluationInFlightRef.current || lastEvaluationKeyRef.current === key) {
@@ -434,16 +385,12 @@ export default function MockInterviewPage() {
         })
         console.log('[MockInterview] Answer evaluated:', evaluation.evaluation.accuracy_score)
 
-        // Dynaimc flow: Speak verbal acknowledgment/feedback before moving on
+        // Speak verbal acknowledgment/feedback before moving on
         if (evaluation.evaluation.verbal_feedback) {
-          setIsSpeaking(true)
           try {
-            await azureAvatarManager.speak(evaluation.evaluation.verbal_feedback)
-            console.log('[MockInterview] response spoken successfully')
+            await speakText(evaluation.evaluation.verbal_feedback)
           } catch (e) {
-            console.warn('[MockInterview] Feedback speak failed:', e)
-          } finally {
-            setIsSpeaking(false)
+            console.warn('[MockInterview] Feedback TTS failed:', e)
           }
         }
 
@@ -568,7 +515,7 @@ export default function MockInterviewPage() {
     )
   }
 
-  // 5. Active Interview Screen
+  // 5. Active Interview Screen (No Avatar)
   return (
     <div className="fixed inset-0 bg-zinc-950 overflow-hidden flex flex-col font-[var(--font-plus-jakarta)]">
       {/* Top Bar Overlay */}
@@ -598,13 +545,11 @@ export default function MockInterviewPage() {
       {/* Main Interview Area: Side-by-Side Videos */}
       <div className="flex-1 flex flex-col md:flex-row items-stretch justify-center p-8 gap-8 w-full max-w-[1700px] mx-auto overflow-hidden">
 
-        {/* AI Avatar Side */}
-        <div className="flex-1 min-h-[500px] h-[60vh] bg-zinc-900 rounded-[3rem] overflow-hidden shadow-2xl relative border border-white/5 ring-1 ring-white/10 group">
-          {/* Avatar Video Container (Azure SDK will append to this) */}
-          <div
-            ref={videoContainerRef}
-            className="w-full h-full [&_video]:scale-[1.1] [&_video]:translate-y-[5%] [&_video]:transition-transform [&_video]:duration-700 [&_video]:object-cover"
-          />
+        {/* Logo Side (replaces Avatar) */}
+        <div className="flex-1 min-h-[500px] h-[60vh] bg-zinc-900 rounded-[3rem] overflow-hidden shadow-2xl relative border border-white/5 ring-1 ring-white/10 group flex items-center justify-center">
+          <div className="flex items-center justify-center p-8">
+            <img src={Logo as unknown as string} alt="IMock Logo" className="w-40 h-40 object-contain opacity-80" />
+          </div>
 
           {/* Label */}
           <div className="absolute top-6 left-6 flex items-center gap-2 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 z-20">
@@ -612,7 +557,7 @@ export default function MockInterviewPage() {
             <span className="text-white/80 text-xs font-bold uppercase tracking-widest">AI Interviewer</span>
           </div>
 
-          {/* AI Voice Activity Visualizer */}
+          {/* Voice visualizer when speaking */}
           {isSpeaking && (
             <div className="absolute top-6 right-6 flex gap-1 h-6 items-center pointer-events-none z-20 bg-brand-500/20 px-3 rounded-full border border-brand-500/30">
               <div className="w-1 h-2 bg-brand-500 rounded-full animate-[bounce_0.6s_infinite]" />
@@ -621,37 +566,6 @@ export default function MockInterviewPage() {
               <div className="w-1 h-5 bg-brand-500 rounded-full animate-[bounce_0.6s_infinite_0.3s]" />
             </div>
           )}
-
-          {/* Status Indicators */}
-          <div className="absolute inset-0 pointer-events-none z-20">
-            {avatarLoading && (
-              <div className="absolute inset-0 bg-zinc-900/80 backdrop-blur-sm flex flex-col items-center justify-center text-center text-white/80 p-6 space-y-4 pointer-events-auto">
-                <Loader2 className="w-12 h-12 animate-spin text-brand-500" />
-                <div className="space-y-1">
-                  <p className="text-xl font-medium text-white">Initializing AI</p>
-                  <p className="text-sm opacity-60">Connecting to Azure Avatar Service...</p>
-                </div>
-              </div>
-            )}
-
-            {avatarError && (
-              <div className="absolute inset-0 bg-zinc-900/90 flex flex-col items-center justify-center text-center text-white p-6 space-y-4 pointer-events-auto">
-                <div className="bg-red-500/20 p-4 rounded-full">
-                  <Video className="w-8 h-8 text-red-500" />
-                </div>
-                <div className="space-y-2 max-w-md">
-                  <p className="text-red-400 font-semibold text-lg">{avatarError}</p>
-                </div>
-                <Button
-                  variant="outline"
-                  className="mt-2 border-white/20 text-white hover:bg-white/10 pointer-events-auto px-6"
-                  onClick={() => initializeAvatar()}
-                >
-                  Retry Connection
-                </Button>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* User Camera Side */}
@@ -689,9 +603,8 @@ export default function MockInterviewPage() {
             <span className="text-white/80 text-xs font-bold uppercase tracking-widest">You (Candidate)</span>
           </div>
 
-          {/* Transcription Overlay (Repositioned to feel more integrated) */}
+          {/* Transcription Overlay */}
           <div className="absolute left-6 right-6 bottom-6 flex flex-col gap-4 z-40">
-            {/* Your Answer Panel */}
             <div className="bg-black/60 backdrop-blur-2xl rounded-[2rem] border border-white/10 shadow-2xl overflow-hidden flex flex-col ring-1 ring-white/5">
               <div className="p-3 px-6 border-b border-white/5 flex items-center justify-between">
                 <h4 className="text-white/80 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">

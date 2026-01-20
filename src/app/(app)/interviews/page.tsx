@@ -180,9 +180,11 @@ function MockInterviewModal({
     }
   }
 
-  const handleStart = () => {
+  const handleStart = (withAvatar: boolean = true) => {
     if (!interview || selectedIndex === null) return
-    router.push(`/mock-interview/${interview.interview_id}?index=${selectedIndex}&count=${questionCount}`)
+    const base = `/mock-interview/${interview.interview_id}`
+    const path = withAvatar ? `${base}?index=${selectedIndex}&count=${questionCount}` : `${base}/without_avatar?index=${selectedIndex}&count=${questionCount}`
+    router.push(path)
   }
 
 
@@ -264,9 +266,12 @@ function MockInterviewModal({
 
         <div className="flex justify-end gap-2 pt-4">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleStart} disabled={selectedIndex === null || uploading || (loading && tab === 'select')}>
-            Start Interview
-          </Button> 
+          <Button onClick={() => handleStart(true)} disabled={selectedIndex === null || uploading || (loading && tab === 'select')}>
+            Start Interview (With Avatar)
+          </Button>
+          <Button variant="ghost" onClick={() => handleStart(false)} disabled={selectedIndex === null || uploading || (loading && tab === 'select')}>
+            Start Interview (No Avatar)
+          </Button>
         </div>
       </div>
     </Modal>
