@@ -2,6 +2,7 @@
 
 import { Sidebar } from '@/components/app-shell/sidebar'
 import { Topbar } from '@/components/app-shell/topbar'
+import Header from '@/components/Header'
 import { RequireAuth } from '@/components/require-auth'
 import { usePathname } from 'next/navigation'
 
@@ -12,11 +13,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <RequireAuth>
       <div className="min-h-screen">
+        <Header/>
         <div className="flex w-full">
           {!hideNavbar && <Sidebar />}
           <div className="min-w-0 flex-1">
             {!hideNavbar && <Topbar />}
-            <main className={hideNavbar ? "px-4 py-8" : "px-4 py-8"}>
+            <main className={hideNavbar ? "" : ""}>
               <div className="w-full">{children}</div>
             </main>
           </div>
