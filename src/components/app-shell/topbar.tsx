@@ -7,28 +7,37 @@ import { LogOut, UserCircle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/context/auth-context'
+import { MdAccountCircle, MdKeyboardArrowDown } from 'react-icons/md'
+import { IoMdNotificationsOutline } from 'react-icons/io'
 
 export function Topbar() {
   const router = useRouter()
   const { user, logout } = useAuth()
+  console.log(user)
 
   const [open, setOpen] = React.useState(false)
 
   return (
-    <header className="sticky top-0 z-20 border-b border-white/60 bg-white/40 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <div className="text-sm text-zinc-600">Welcome back{user?.username ? `, ${user.username}` : ''}.</div>
+    <header className="sticky top-0 z-40 bg-white backdrop-blur border-b border-[#E0E0E0]">
+      <div className="flex items-center justify-between px-20 py-3">
+        {/* <div className="text-sm text-zinc-600">Welcome back{user?.username ? `, ${user.username}` : ''}.</div> */}
+        <div></div>
         <div className="relative">
-          <Button
-            variant="outline"
-            className="bg-white/60"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-            aria-haspopup="menu"
-          >
-            <UserCircle className="h-4 w-4" />
-            Account
-          </Button>
+          <div className='flex gap-5 items-center'>
+            <IoMdNotificationsOutline color="#9F50E9" size={30} />
+            <div className='border h-10 border-[#]'/>
+            <div className='flex gap-3 items-center'>
+              <div onClick={() => setOpen((v) => !v)} className='cursor-pointer'>
+                <MdKeyboardArrowDown size={30} />
+              </div>
+              <div className='flex gap-2 items-center'>
+                <MdAccountCircle size={40} />
+                <p>{user?.username}</p>
+              </div>
+            </div>
+          </div>
+
+
 
           {open ? (
             <div

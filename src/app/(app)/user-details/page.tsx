@@ -837,13 +837,12 @@ export default function UserDetailsPage() {
 
   const currentRole = details?.current_role || ''
 
-  console.log(currentRole)
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center py-20 px-4 bg-[#cbb8de] ">
+    <div className="relative min-h-screen flex items-center justify-center py-20 px-4 bg-[#cbb8de]">
 
       <div
-        className="absolute top-32 right-60 w-[200px] h-[200px] z-10"
+        className="hidden lg:block absolute top-32 xl:right-[10%] w-[200px] h-[200px] z-60"
         style={{
           background:
             "radial-gradient(circle at top right, rgb(149,91,204) 0%, rgb(149,91,204)  60%, transparent 60%)",
@@ -851,7 +850,7 @@ export default function UserDetailsPage() {
         }}
       />
       <div
-        className="absolute bottom-1/4 -left-10 w-[800px] h-[400px] z-10"
+        className="hidden lg:block absolute bottom-1/4 -left-10 w-[800px] h-[400px] z-60"
         style={{
           background:
             "radial-gradient(circle at top left, rgb(157,104,207) 0%, rgb(168,117,222)  25%, transparent 60%)",
@@ -859,17 +858,17 @@ export default function UserDetailsPage() {
         }}
       />
       <div
-        className="absolute bottom-0 right-0 w-[400px] h-[600px] pointer-events-none"
+        className="hidden lg:block absolute bottom-0 right-0 w-[400px] h-[600px] pointer-events-none"
         style={{
           background:
             "radial-gradient(circle at bottom right, rgb(168,117,222) 0%, rgb(168,117,222) 30%, transparent 50%)",
           filter: "blur(40px)",
         }}
       />
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-7xl p-8 sm:p-10 relative z-20">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-7xl p-8 sm:p-10 relative z-99">
 
         <div
-          className="absolute bottom-0 -left-32 w-[400px] h-[600px] pointer-events-none -z-10"
+          className="hidden lg:block absolute bottom-0 -left-32 w-[400px] h-[600px] pointer-events-none -z-10"
           style={{
             background:
               "radial-gradient(circle at bottom right, rgb(236,220,255) 0%, rgb(236,220,255) 30%, transparent 60%)",
@@ -877,30 +876,22 @@ export default function UserDetailsPage() {
           }}
         />
         <div className="flex items-center justify-center gap-2 mb-8  ">
-          <div
-            className="absolute -top-10 right-0 left-0 w-[800px] h-[200px] pointer-events-none"
-            style={{
-              background:
-                "radial-gradient(circle at bottom right, rgb(236,220,255) 0%, rgb(236,220,255) 30%, transparent 60%)",
-              filter: "blur(40px)",
-            }}
-          />
           <Image
             src="/imock-logo.svg"
             alt="robot"
             width={50}
             height={50}
-            className="z-10"
+            className="z-60"
 
           />
-          <h1 className="text-3xl font-bold text-purple-600 z-10">iMock</h1>
+          <h1 className="text-3xl font-bold text-purple-600 z-60">iMock</h1>
         </div>
         <div className="relative w-full bg-gradient-to-b from-[#ecdaff] via-purple-[#ecdaff] to-transparent z-60">
           <div className="text-center mb-8">
-            <h2 className="text-[40px] font-bold text-[#292929] mb-2">
+            <h2 className="text-[24px] lg:text-[40px] font-bold text-[#292929] mb-2">
               Complete Your Profile
             </h2>
-            <p className="text-[20px] text-[#292929]">
+            <p className="text-sm lg:text-[20px] text-[#292929]">
               Tell us a bit about yourself to personalize your experience.
             </p>
           </div>
@@ -919,10 +910,10 @@ export default function UserDetailsPage() {
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 mt-6">{success}</div>
         ) : null}
 
-        <div className="flex items-center justify-center gap-20 mb-8 w-full">
+        <div className="flex items-center justify-center gap-3 lg:gap-20 mb-8 w-full ">
           <button
             onClick={() => updateDetailsField('current_role', 'Student')}
-            className={`w-[20%] px-2 py-3 rounded-lg font-semibold transition-all
+            className={`w-full md:w-[20%] px-1 lg:px-2  py-2 lg:py-3 rounded-lg font-semibold transition-all
       ${currentRole === 'Student'
                 ? 'bg-purple-600 text-white shadow-lg'
                 : 'bg-gray-100 text-[#4C0E87] hover:bg-gray-200'
@@ -933,7 +924,7 @@ export default function UserDetailsPage() {
 
           <button
             onClick={() => updateDetailsField('current_role', 'Fresher')}
-            className={`w-[20%] px-2 py-3 rounded-lg font-semibold transition-all
+            className={`w-full md:w-[20%] px-1 lg:px-2  py-2 lg:py-3  rounded-lg font-semibold transition-all
       ${currentRole === 'Fresher'
                 ? 'bg-purple-600 text-white shadow-lg'
                 : 'bg-gray-100 text-[#4C0E87] hover:bg-gray-200'
@@ -944,7 +935,7 @@ export default function UserDetailsPage() {
 
           <button
             onClick={() => updateDetailsField('current_role', 'Professional')}
-            className={`w-[20%] px-2 py-3 rounded-lg font-semibold transition-all
+            className={`w-full md:w-[20%] px-1 lg:px-2  py-2 lg:py-3  rounded-lg font-semibold transition-all
       ${currentRole === 'Professional'
                 ? 'bg-purple-600 text-white shadow-lg'
                 : 'bg-gray-100 text-[#4C0E87] hover:bg-gray-200'
@@ -1150,6 +1141,7 @@ export default function UserDetailsPage() {
                   value={String(details?.contact_number || '')}
                   onChange={(e) => updateDetailsField('contact_number', e.target.value)}
                   required
+                  placeholder="9999999999"
                   className="w-full px-4 py-2.5  placeholder-[#9F50E9] border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
@@ -1179,7 +1171,7 @@ export default function UserDetailsPage() {
                     }
                   }}
                   placeholder="Type a skill and press Enter"
-                  className="w-full px-4 py-2.5 border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  className="w-full px-4 py-2.5  placeholder-[#9F50E9] border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               {skills.length > 0 && (
@@ -1187,13 +1179,13 @@ export default function UserDetailsPage() {
                   {skills.map((skill) => (
                     <span
                       key={skill}
-                      className="inline-flex items-center gap-1 bg-brand-100 text-brand-800 px-3 py-1 rounded-full text-sm"
+                      className="inline-flex  items-center gap-1 bg-brand-100 text-brand-800 px-3 py-1 rounded-full text-sm"
                     >
                       {skill}
                       <button
                         type="button"
                         onClick={() => removeSkill(skill)}
-                        className="hover:text-brand-900"
+                        className="hover:text-brand-900 "
                       >
                         ×
                       </button>
@@ -1208,8 +1200,8 @@ export default function UserDetailsPage() {
                   value={String(details?.bio || '')}
                   onChange={(e) => updateDetailsField('bio', e.target.value)}
                   // required={currentRole === 'Fresher'}
-                  placeholder="Type a skill and press Enter"
-                  className="w-full px-4 py-2.5 border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  placeholder="Type your bio"
+                  className="w-full px-4  placeholder-[#9F50E9] py-2.5 border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <div>
@@ -1219,8 +1211,8 @@ export default function UserDetailsPage() {
                   id="location"
                   value={String(details?.location || '')}
                   onChange={(e) => updateDetailsField('location', e.target.value)}
-                  placeholder=""
-                  className="w-full px-4 py-2.5 border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  placeholder="location"
+                  className="w-full px-4 py-2.5  placeholder-[#9F50E9] border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <div>
@@ -1228,9 +1220,10 @@ export default function UserDetailsPage() {
                 <input
                   type="number"
                   id="phone"
+                  placeholder='9999999999'
                   value={String(details?.phone || details?.contact_number || '')}
                   onChange={(e) => updateDetailsField('phone', e.target.value)}
-                  className="w-full px-4 py-2.5 border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  className="w-full px-4 py-2.5  placeholder-[#9F50E9] border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <div>
@@ -1238,17 +1231,19 @@ export default function UserDetailsPage() {
                 <input
                   id="linkedin"
                   value={String(details?.linkedin || '')}
+                  placeholder='/https/linkedin.com'
                   onChange={(e) => updateDetailsField('linkedin', e.target.value)}
-                  className="w-full px-4 py-2.5 border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  className="w-full px-4 py-2.5 placeholder-[#9F50E9]  border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <div>
                 <label className="block text-xs text-[#4C0E87] mb-2">Github</label>
                 <input
                   id="github"
+                  placeholder='github'
                   value={String(details?.github || '')}
                   onChange={(e) => updateDetailsField('github', e.target.value)}
-                  className="w-full px-4 py-2.5 border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  className="w-full px-4 py-2.5  placeholder-[#9F50E9] border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
 

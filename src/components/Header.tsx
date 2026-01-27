@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 
 const navItems = [
@@ -17,6 +17,7 @@ export default function Header() {
     const [open, setOpen] = useState(false);
     const [active, setActive] = useState<"login" | "signup">("login");
     const pathname = usePathname();
+    const router = useRouter();
 
     return (
         <div className="w-full bg-[#F6EEFF] fixed z-10">
@@ -24,7 +25,7 @@ export default function Header() {
                 {/* Top bar */}
                 <div className="flex h-16 items-center justify-between">
                     {/* Logo */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => router.push("/")}>
                         <Image
                             src="/imock-logo.svg"
                             alt="robot"
@@ -69,7 +70,11 @@ export default function Header() {
                     <div className="hidden md:flex items-center rounded-full bg-[#e2c5fd] p-1">
                         {/* Login */}
                         <button
-                            onClick={() => setActive("login")}
+                            onClick={() => {
+                                setActive("login"),
+                                    router.push("/login");
+                            }
+                            }
                             className={`rounded-full px-5 py-1.5 text-sm transition-all
           ${active === "login"
                                     ? "bg-[#9f50e9] text-white shadow"
@@ -82,7 +87,10 @@ export default function Header() {
 
                         {/* Signup */}
                         <button
-                            onClick={() => setActive("signup")}
+                            onClick={() => {
+                                setActive("signup"),
+                                    router.push("/login")
+                            }}
                             className={`rounded-full px-5 py-1.5 text-sm transition-all
           ${active === "signup"
                                     ? "bg-[#9f50e9] text-white shadow"
@@ -136,6 +144,6 @@ export default function Header() {
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 }
