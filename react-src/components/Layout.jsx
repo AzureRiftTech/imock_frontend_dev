@@ -12,6 +12,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import InventoryIcon from '@mui/icons-material/Inventory';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
+import DescriptionIcon from '@mui/icons-material/Description';
 import { useAuth } from '../context/AuthContext';
 
 const drawerWidth = 240;
@@ -46,6 +47,7 @@ export default function Layout() {
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
     { text: 'Questions', icon: <QuestionAnswerIcon />, path: '/questions' },
     { text: 'Interviews', icon: <EventIcon />, path: '/interviews' },
+    { text: 'CV & Resume', icon: <DescriptionIcon />, path: '/user-details' },
     { text: 'Subscriptions', icon: <CardMembershipIcon />, path: '/subscriptions' },
     { text: 'Profile', icon: <PersonIcon />, path: '/profile' },
     { text: 'Connections', icon: <LinkIcon />, path: '/connected-accounts' },

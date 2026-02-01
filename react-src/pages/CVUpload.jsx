@@ -12,13 +12,23 @@ import {
   ListItemText,
   IconButton,
   Chip,
+  Tabs,
+  Tab,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  CircularProgress,
 } from '@mui/material';
 import {
   CloudUpload as UploadIcon,
   Delete as DeleteIcon,
   Description as FileIcon,
+  Download as DownloadIcon,
+  Refresh as RefreshIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import axios from 'axios';
+import api from '../api/axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3333';
 
@@ -30,6 +40,21 @@ export default function CVUpload() {
   const [error, setError] = useState(null);
   const [cvList, setCvList] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [tabValue, setTabValue] = useState(0);
+  
+  // Resume Builder state
+  const [resumeLoading, setResumeLoading] = useState(false);
+  const [resumeError, setResumeError] = useState(null);
+  const [resumeSuccess, setResumeSuccess] = useState(false);
+  const [pdfData, setPdfData] = useState(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  const getCleanBase64 = (value) => {
+    if (!value) return '';
+    return String(value)
+      .replace(/^data:application\/pdf;base64,/i, '')
+      .replace(/\s/g, '');
+  };
 
   // Fetch CV list on component mount
   useState(() => {
@@ -151,21 +176,92 @@ export default function CVUpload() {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
+  // Resume Builder handlers
+  const handleGenerateResume = async () => {
+    try {
+      setResumeLoading(true);
+      setResumeError(null);
+      setResumeSuccess(false);
+
+      const response = await api.post('/resume/generate');
+
+      if (response.data.success) {
+        setPdfData({
+          base64: response.data.base64,
+          filename: response.data.filename,
+        });
+        setResumeSuccess(true);
+      } else {
+        setResumeError(response.data.error || 'Failed to generate resume');
+      }
+    } catch (err) {
+      console.error('Resume generation error:', err);
+      const errorMessage =
+        err.response?.data?.error || err.message || 'Failed to generate resume';
+      setResumeError(errorMessage);
+    } finally {
+      setResumeLoading(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!pdfData?.base64) return;
+
+    try {
+      const cleanBase64 = getCleanBase64(pdfData.base64);
+      if (!cleanBase64) {
+        setResumeError('Invalid PDF data');
+        return;
+      }
+
+      const response = await fetch(`data:application/pdf;base64,${cleanBase64}`);
+      const blob = await response.blob();
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = pdfData.filename || 'resume.pdf';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download error:', err);
+      setResumeError('Failed to download PDF');
+    }
+  };
+
+  const handlePreviewPdf = () => {
+    setPreviewOpen(true);
+  };
+
+  const handleTabChange = (event, newValue) => {
+    setTabValue(newValue);
+  };
+
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto', p: 3 }}>
       <Typography variant="h4" gutterBottom>
-        CV Management
+        CV & Resume Management
       </Typography>
       <Typography variant="body2" color="text.secondary" paragraph>
-        Upload your CV to enable personalized interview coaching with AI
+        Upload your CV or generate a professional resume from your profile
       </Typography>
 
-      {/* Upload Section */}
+      {/* Tabs */}
       <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Upload New CV
-          </Typography>
+        <Tabs 
+          value={tabValue} 
+          onChange={handleTabChange} 
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab label="Upload CV" />
+          <Tab label="Generate Resume" />
+        </Tabs>
+
+        {/* Tab 1: Upload CV */}
+        {tabValue === 0 && (
+          <CardContent>
 
           <Box sx={{ mb: 2 }}>
             <input
@@ -307,16 +403,151 @@ export default function CVUpload() {
               ))}
             </List>
           )}
-        </CardContent>
+          </CardContent>
+        )}
+
+        {/* Tab 2: Generate Resume */}
+        {tabValue === 1 && (
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Generate Your Professional Resume
+            </Typography>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              Click the button below to generate a professional resume based on your
+              profile data. The resume will be created using AI and compiled to PDF.
+            </Typography>
+
+            {resumeError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {resumeError}
+              </Alert>
+            )}
+
+            {resumeSuccess && !resumeLoading && (
+              <Alert severity="success" sx={{ mb: 2 }}>
+                ✓ Resume generated successfully!
+              </Alert>
+            )}
+
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+              <Button
+                variant="contained"
+                onClick={handleGenerateResume}
+                disabled={resumeLoading}
+                startIcon={resumeLoading ? <CircularProgress size={20} /> : <RefreshIcon />}
+              >
+                {resumeLoading ? 'Generating...' : 'Generate Resume'}
+              </Button>
+
+              {pdfData && (
+                <>
+                  <Button
+                    variant="outlined"
+                    onClick={handlePreviewPdf}
+                    disabled={resumeLoading}
+                  >
+                    Preview PDF
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={handleDownloadPdf}
+                    disabled={resumeLoading}
+                    startIcon={<DownloadIcon />}
+                  >
+                    Download PDF
+                  </Button>
+                </>
+              )}
+            </Box>
+
+            {pdfData && (
+              <Box sx={{ p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+                <Typography variant="caption" display="block">
+                  <strong>File:</strong> {pdfData.filename}
+                </Typography>
+                <Typography variant="caption" display="block">
+                  <strong>Size:</strong>{' '}
+                  {(pdfData.base64.length / 1024).toFixed(2)} KB
+                </Typography>
+              </Box>
+            )}
+
+            <Box sx={{ mt: 3 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                How It Works:
+              </Typography>
+              <Box component="ol" sx={{ pl: 2, mb: 2 }}>
+                <Typography component="li" variant="body2">
+                  Click "Generate Resume" to create your PDF resume
+                </Typography>
+                <Typography component="li" variant="body2">
+                  The system uses AI (Gemini) to generate professional LaTeX code based on your profile
+                </Typography>
+                <Typography component="li" variant="body2">
+                  The LaTeX is compiled into a PDF file
+                </Typography>
+                <Typography component="li" variant="body2">
+                  Download or preview your resume immediately
+                </Typography>
+              </Box>
+            </Box>
+          </CardContent>
+        )}
       </Card>
 
       <Box sx={{ mt: 2 }}>
         <Alert severity="info">
           <Typography variant="caption">
-            <strong>Supported formats:</strong> PDF, DOCX, DOC, TXT (max 10MB)
+            <strong>CV Supported formats:</strong> PDF, DOCX, DOC, TXT (max 10MB) | 
+            <strong style={{ marginLeft: '0.5rem' }}>Resume:</strong> Generated from your profile data
           </Typography>
         </Alert>
       </Box>
+
+      {/* PDF Preview Dialog */}
+      <Dialog
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Resume Preview
+          <IconButton
+            aria-label="close"
+            onClick={() => setPreviewOpen(false)}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+              color: 'grey.500',
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          {pdfData?.base64 ? (
+            <Box
+              sx={{
+                width: '100%',
+                height: 600,
+                mt: 2,
+              }}
+            >
+              <iframe
+                src={`data:application/pdf;base64,${getCleanBase64(pdfData.base64)}`}
+                width="100%"
+                height="100%"
+                style={{ border: 'none', borderRadius: 4 }}
+                title="Resume Preview"
+              />
+            </Box>
+          ) : (
+            <Typography>No PDF available for preview</Typography>
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }

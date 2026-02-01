@@ -585,12 +585,29 @@ export default function DashboardPage() {
     );
   };
   return (
-   <div className="min-h-screen bg-[#F7F4FF] p-4 lg:p-6">
+    <div className="min-h-screen p-4 lg:p-6">
+
+      <div
+        className="hidden lg:block absolute bottom-0 left-40 w-[800px] h-[300px] pointer-events-none -z-10"
+        style={{
+          background:
+            "radial-gradient(circle at bottom left, rgb(239,225,255) 0%, rgb(239,225,255) 30%, transparent 50%)",
+          filter: "blur(40px)",
+        }}
+      />
+      <div
+        className="hidden lg:block absolute bottom-0 right-0 w-[400px] h-[500px] pointer-events-none -z-10"
+        style={{
+          background:
+            "radial-gradient(circle at bottom right, rgb(235,217,255) 0%, rgb(235,217,255) 30%, transparent 50%)",
+          filter: "blur(40px)",
+        }}
+      />
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 xl:gap-6">
 
         {/* LEFT COLUMN */}
-        <div className="col-span-1 lg:col-span-3 space-y-6">
-          <Card>
+        <div className="col-span-1 lg:col-span-3 space-y-6 ">
+          <Card className="bg-[#F7F4FF]">
             <h4 className="font-semibold">Matrix - Interview</h4>
             <div className="flex justify-center py-6">
               <div className="w-24 h-24 lg:w-28 lg:h-28 rounded-full border-[10px] border-[#e2c5fd] flex items-center justify-center text-lg font-bold">
@@ -649,8 +666,8 @@ export default function DashboardPage() {
             </div>
           </Card>
 
-          <Card>
-            <div className="flex justify-between items-center">
+          <Card className="bg-[#F7F4FF]">
+            <div className="flex justify-between items-center ">
               <p className="font-semibold">Past Interview Score</p>
               <FaRegQuestionCircle size={25} color="#4C0E87" />
             </div>
@@ -703,7 +720,7 @@ export default function DashboardPage() {
           <div className="flex  flex-col md:flex-row w-full justify-between gap-2 xl:gap-10">
             {/* <div className="grid grid-cols-3 gap-6"> */}
             <div className="flex flex-col w-full gap-5">
-              <SmallCard title="Total Interviews" value="12" />
+              <SmallCard className="" title="Total Interviews" value="12" />
               <SmallCard title="Community Activity" value="120 Points" />
               <SmallCard title="Messages" value="50" />
             </div>
@@ -711,8 +728,8 @@ export default function DashboardPage() {
 
             {/* BIG CARDS */}
             {/* <div className="grid grid-cols-2 gap-6"> */}
-            <div className="w-full flex flex-col gap-5">
-              <div className="relative flex flex-col items-center justify-center border border-[#AE73F3]/60 rounded-2xl">
+            <div className="w-full flex flex-col gap-5 ">
+              <div className="relative flex flex-col items-center justify-center border border-[#AE73F3]/60 rounded-2xl bg-[#F7F4FF]">
 
                 {/* Image Carousel */}
                 <div className="relative w-[140px] h-[140px] flex items-center justify-center mb-3">
@@ -751,7 +768,7 @@ export default function DashboardPage() {
                   45
                 </h3>
               </div>
-              <div className="flex flex-col items-center justify-center border border-[#AE73F3]/60 rounded-2xl py-3">
+              <div className="flex flex-col items-center justify-center border border-[#AE73F3]/60 rounded-2xl py-3 bg-[#F7F4FF]">
                 <div className="flex flex-col items-center">
                   <p className="text-lg lg:text-xl  font-semibold text-[#6C1BB8]">Total Badges</p>
                   <h3 className="text-3xl lg:text-4xl font-bold text-[#9F50E9]">45</h3>
@@ -764,7 +781,7 @@ export default function DashboardPage() {
           {/* </div> */}
 
           {/* JOB CARD */}
-          <Card className="p-0 overflow-hidden">
+          <Card className="p-0 overflow-hidden bg-[#F7F4FF]">
             <p className="text-[#4C0E87] font-semibold text-xl lg:text-2xl text-center py-3">New Job Vacancy</p>
             <img
               src="https://upload.wikimedia.org/wikipedia/commons/9/95/Infosys_logo.svg"
@@ -788,103 +805,106 @@ export default function DashboardPage() {
 
         {/* RIGHT COLUMN */}
         <div className="col-span-1 lg:col-span-3 space-y-6">
+          <div className="flex flex-col sm:flex-row lg:flex-col gap-5 ">
 
-          <div className="border border-[#AE73F3]/60 rounded-2xl rounded-3xl p-6 w-full max-w-sm mx-auto">
-            <div className="flex items-center justify-between mb-4">
-              <button
-                onClick={() => changeMonth('prev')}
-                className="w-8 h-8 flex items-center justify-center rounded-xl bg-[#E6D7FF] border border-[#6C1BB8]/40 text-[#6C1BB8]"
-              >
-                <ChevronLeft size={18} />
-              </button>
-
-              <h2 className="text-lg font-semibold text-[#6C1BB8]">
-                {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-              </h2>
-
-              <button
-                onClick={() => changeMonth('next')}
-                className="w-8 h-8 flex items-center justify-center rounded-xl bg-[#E6D7FF] border border-[#6C1BB8]/40 text-[#6C1BB8]"
-              >
-                <ChevronRight size={18} />
-              </button>
-            </div>
-
-            {/* Week Days */}
-            <div className="grid grid-cols-7 text-sm text-[#9F50E9] mb-2">
-              {WEEK_DAYS.map(day => (
-                <div key={day} className="text-center">
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            {/* Dates */}
-            <div className="grid grid-cols-7 gap-y-3 text-sm text-[#6C1BB8]">
-              {/* Empty slots */}
-              {Array.from({ length: firstDayOfMonth }).map((_, i) => (
-                <div key={`empty-${i}`} />
-              ))}
-
-              {/* Days */}
-              {Array.from({ length: daysInMonth }).map((_, i) => (
-                <div
-                  key={i}
-                  className="text-center cursor-pointer hover:text-[#9F50E9]"
+            <div className="border border-[#AE73F3]/60 rounded-2xl rounded-3xl p-6 w-full max-w-sm mx-auto bg-[#F7F4FF]">
+              <div className="flex items-center justify-between mb-4">
+                <button
+                  onClick={() => changeMonth('prev')}
+                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-[#E6D7FF] border border-[#6C1BB8]/40 text-[#6C1BB8]"
                 >
-                  {i + 1}
-                </div>
-              ))}
+                  <ChevronLeft size={18} />
+                </button>
+
+                <h2 className="text-lg font-semibold text-[#6C1BB8]">
+                  {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                </h2>
+
+                <button
+                  onClick={() => changeMonth('next')}
+                  className="w-8 h-8 flex items-center justify-center rounded-xl bg-[#E6D7FF] border border-[#6C1BB8]/40 text-[#6C1BB8]"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+
+              {/* Week Days */}
+              <div className="grid grid-cols-7 text-sm text-[#9F50E9] mb-2">
+                {WEEK_DAYS.map(day => (
+                  <div key={day} className="text-center">
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-7 gap-y-3 text-sm text-[#6C1BB8]">
+                {/* Empty slots */}
+                {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+                  <div key={`empty-${i}`} />
+                ))}
+
+                {/* Days */}
+                {Array.from({ length: daysInMonth }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="text-center cursor-pointer hover:text-[#9F50E9]"
+                  >
+                    {i + 1}
+                  </div>
+                ))}
+              </div>
             </div>
+
+            <Card className="w-full max-w-sm rounded-2xl bg-[#FBF7FF] p-5">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-semibold text-black">
+                  Notifications <span className="text-gray-500 font-normal">(2 unread)</span>
+                </p>
+
+                <RiEqualizerLine size={30} color="#9F50E9" />
+              </div>
+
+              {/* Notification items */}
+              <div className="space-y-4">
+                {/* Item */}
+                <div className="flex items-center gap-3 pb-4 border-b border-[#E9E0F5]">
+                  <BiMessageSquareDots size={25} />
+                  <div>
+                    <p className="text-md text-black">Muna John</p>
+                    <p className="text-xs text-gray-500">Invited you to a chat</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 pb-4 border-b border-[#E9E0F5]">
+                  <CiUser size={25} />
+                  <div>
+                    <p className="text-md text-black">Eva Solaris</p>
+                    <p className="text-xs text-gray-500">Invited you to a meeting</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <RiImageEditLine size={25} />
+                  <div>
+                    <p className="text-md text-black">Sean Pauline</p>
+                    <p className="text-xs text-gray-500">Prepared a report</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Button */}
+              <button className="mt-5 w-full rounded-xl bg-[#F1E6FF] py-2 text-sm font-semibold text-[#9F50E9]">
+                Mark all as read
+              </button>
+            </Card>
+
+          </div>
+          <div className="flex flex-col items-end justify-end h-1/5">
+            <Image src="/footer.svg" alt="" height={400} width={400} />
           </div>
 
-          <Card className="w-full max-w-sm rounded-2xl bg-[#FBF7FF] p-5">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-              <p className="font-semibold text-black">
-                Notifications <span className="text-gray-500 font-normal">(2 unread)</span>
-              </p>
-
-              <RiEqualizerLine size={30} color="#9F50E9" />
-            </div>
-
-            {/* Notification items */}
-            <div className="space-y-4">
-              {/* Item */}
-              <div className="flex items-center gap-3 pb-4 border-b border-[#E9E0F5]">
-                <BiMessageSquareDots size={25} />
-                <div>
-                  <p className="text-md text-black">Muna John</p>
-                  <p className="text-xs text-gray-500">Invited you to a chat</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 pb-4 border-b border-[#E9E0F5]">
-                <CiUser  size={25}/>
-                <div>
-                  <p className="text-md text-black">Eva Solaris</p>
-                  <p className="text-xs text-gray-500">Invited you to a meeting</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <RiImageEditLine size={25} />
-                <div>
-                  <p className="text-md text-black">Sean Pauline</p>
-                  <p className="text-xs text-gray-500">Prepared a report</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Button */}
-            <button className="mt-5 w-full rounded-xl bg-[#F1E6FF] py-2 text-sm font-semibold text-[#9F50E9]">
-              Mark all as read
-            </button>
-          </Card>
-
-          <div className="flex flex-col items-end justify-end">
-            <Image src="/footer.svg" alt="" height={500} width={500} />
-          </div>
         </div>
 
 
@@ -898,7 +918,7 @@ export default function DashboardPage() {
 function Card({ children, className = "" }: any) {
   return (
     <div
-      className={`bg-card border border-[#AE73F3]/60 rounded-2xl p-5 shadow-sm ${className}`}
+      className={`bg-card border border-[#AE73F3]/60  rounded-2xl p-5 shadow-sm ${className}`}
     >
       {children}
     </div>
@@ -907,8 +927,8 @@ function Card({ children, className = "" }: any) {
 
 function SmallCard({ title, value }: any) {
   return (
-    <Card>
-      <div className="flex justify-between ">
+    <Card className="bg-[#F7F4FF]">
+      <div className="flex justify-between">
         <div>
           <p className="text-lg text-[#6C1BB8]">{title}</p>
           <h3 className="text-xl font-bold mt-2">{value}</h3>

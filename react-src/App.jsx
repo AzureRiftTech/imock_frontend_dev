@@ -14,6 +14,7 @@ import ConnectedAccounts from './pages/ConnectedAccounts';
 import Subscriptions from './pages/Subscriptions';
 import VerifyEmail from './pages/VerifyEmail';
 import UserDetails from './pages/UserDetails';
+import CVUpload from './pages/CVUpload';
 import Interviews from './pages/Interviews';
 import SuperAdminIndex from './pages/super-admin';
 import SAUsers from './pages/super-admin/Users';
@@ -48,7 +49,8 @@ function App() {
                 <Route path="/connected-accounts" element={<ConnectedAccounts />} />
                 <Route path="/subscriptions" element={<Subscriptions />} />
                 <Route path="/verify-email" element={<VerifyEmail />} />
-                <Route path="/user-details" element={<UserDetails />} />
+                <Route path="/user-details" element={<CVUpload />} />
+                <Route path="/cv" element={<CVUpload />} />
                 <Route path="/interviews" element={<Interviews />} />
                 <Route path="/mock-interview" element={<MockInterview />} />
                 <Route path="/super-admin" element={<SuperAdminIndex />}>

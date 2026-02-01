@@ -169,7 +169,7 @@ export default function HomePage() {
                     alt="user"
                     width={36}
                     height={36}
-                    className="rounded-full border-2 border-white hover:scale-150  "
+                    className="rounded-full border-2 border-white hover:scale-150"
                   />
                 ))}
               </div>
