@@ -60,7 +60,7 @@ export default function MockInterviewNoAvatarPage() {
 
   const interviewId = params?.interview_id as string
   const resumeIndex = searchParams?.get('index')
-  const countParam = searchParams?.get('count')
+  const durationParam = searchParams?.get('duration') // timing in minutes
 
   // --- States for Question Generation ---
   const [loading, setLoading] = React.useState(false)
@@ -74,6 +74,9 @@ export default function MockInterviewNoAvatarPage() {
   const [currentIndex, setCurrentIndex] = React.useState<number>(-1) // -1 = not started
   const [isSpeaking, setIsSpeaking] = React.useState(false)
   const [showAnswer, setShowAnswer] = React.useState(false)
+  const [timeRemaining, setTimeRemaining] = React.useState<number>(0)
+  const [interviewStartTime, setInterviewStartTime] = React.useState<number | null>(null)
+  const [isTimeUp, setIsTimeUp] = React.useState(false)
 
   // Answer Recording States
   const [isRecording, setIsRecording] = React.useState(false)
@@ -127,10 +130,14 @@ export default function MockInterviewNoAvatarPage() {
     setError(null)
 
     try {
+      // Generate enough questions for the interview duration (approx 1-2 questions per minute)
+      const durationMinutes = durationParam ? Number(durationParam) : 5
+      const estimatedQuestions = Math.max(5, Math.ceil(durationMinutes * 1.5))
+      
       const res = await api.post('/mock-interview/generate-questions', {
         schedule_id: Number(interviewId),
         index: Number(resumeIndex),
-        question_count: countParam ? Number(countParam) : 5,
+        question_count: estimatedQuestions,
         persist: true // persist questions and create a session token
       });
 
@@ -148,7 +155,7 @@ export default function MockInterviewNoAvatarPage() {
     } finally {
       setLoading(false)
     }
-  }, [interviewId, resumeIndex, countParam])
+  }, [interviewId, resumeIndex, durationParam])
 
   React.useEffect(() => {
     if (!attemptedRef.current && interviewId && resumeIndex !== null) {
@@ -185,8 +192,40 @@ export default function MockInterviewNoAvatarPage() {
     }
   }
 
+  // Timer effect
+  React.useEffect(() => {
+    if (!interviewStartTime || isTimeUp) return
+    
+    const interval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - interviewStartTime) / 1000) // seconds
+      const durationSeconds = (durationParam ? Number(durationParam) : 5) * 60
+      const remaining = Math.max(0, durationSeconds - elapsed)
+      
+      setTimeRemaining(remaining)
+      
+      if (remaining === 0) {
+        setIsTimeUp(true)
+        clearInterval(interval)
+      }
+    }, 1000)
+    
+    return () => clearInterval(interval)
+  }, [interviewStartTime, durationParam, isTimeUp])
+
+  // Auto-end interview when time is up
+  React.useEffect(() => {
+    if (isTimeUp && currentIndex >= 0 && !loading) {
+      console.log('[MockInterview] Time up! Ending interview...')
+      handleNext(true)
+    }
+  }, [isTimeUp, currentIndex, loading])
+
   // Handlers
   const handleStartSession = async () => {
+    const now = Date.now()
+    setInterviewStartTime(now)
+    const durationMinutes = durationParam ? Number(durationParam) : 5
+    setTimeRemaining(durationMinutes * 60)
     setCurrentIndex(0)
     await startCamera() // Request camera access immediately
     if (questions[0]) {
@@ -313,7 +352,43 @@ export default function MockInterviewNoAvatarPage() {
           }
         },
         (error) => {
-          setRecordingError(error)
+          console.error('[MockInterview] Speech recognition error:', error)
+          
+          // Provide user-friendly error messages
+          let errorMessage = 'Speech recognition error'
+          if (typeof error === 'string') {
+            errorMessage = error
+          } else if (error?.message) {
+            errorMessage = error.message
+          }
+          
+          // Check for specific error types if it's a SpeechRecognitionErrorEvent
+          if (error?.error) {
+            switch (error.error) {
+              case 'no-speech':
+                errorMessage = 'No speech detected. Please try speaking louder or check your microphone.'
+                break
+              case 'audio-capture':
+                errorMessage = 'Microphone not accessible. Please check your microphone permissions.'
+                break
+              case 'not-allowed':
+                errorMessage = 'Microphone permission denied. Please allow microphone access in your browser settings.'
+                break
+              case 'network':
+                errorMessage = 'Network error. Speech recognition requires an internet connection.'
+                break
+              case 'aborted':
+                errorMessage = 'Speech recognition was stopped.'
+                break
+              case 'service-not-allowed':
+                errorMessage = 'Speech recognition service not allowed. Please check browser permissions.'
+                break
+              default:
+                errorMessage = `Speech recognition error: ${error.error}`
+            }
+          }
+          
+          setRecordingError(errorMessage)
           setIsRecording(false)
         }
       )
@@ -321,7 +396,7 @@ export default function MockInterviewNoAvatarPage() {
       console.log('[MockInterview] Recording started (browser)')
     } catch (error: any) {
       console.error('[MockInterview] Recording failed:', error)
-      setRecordingError(error.message || 'Failed to start recording (browser)')
+      setRecordingError(error.message || 'Failed to start recording. Please check microphone permissions.')
       setIsRecording(false)
     }
   }
@@ -530,7 +605,15 @@ export default function MockInterviewNoAvatarPage() {
           </h2>
         </div>
 
-        <div className="flex items-center gap-2 pointer-events-auto bg-black/40 backdrop-blur-md p-3 rounded-2xl border border-white/10">
+        <div className="flex items-center gap-4 pointer-events-auto">
+          <div className="bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/10">
+            <div className="text-center">
+              <div className={`text-3xl font-bold ${isTimeUp ? 'text-red-500' : 'text-white'}`}>
+                {Math.floor(timeRemaining / 60)}:{String(timeRemaining % 60).padStart(2, '0')}
+              </div>
+              <div className="text-white/60 text-xs mt-1">Time Remaining</div>
+            </div>
+          </div>
           <Button
             variant="ghost"
             size="sm"
@@ -641,6 +724,25 @@ export default function MockInterviewNoAvatarPage() {
                 <div className="px-6 py-3 bg-brand-500/20 border-t border-white/5 flex items-center gap-3">
                   <Loader2 className="w-3 h-3 animate-spin text-brand-400" />
                   <span className="text-[10px] font-bold text-brand-400 uppercase tracking-widest">AI Analyzing Response...</span>
+                </div>
+              )}
+              {recordingError && (
+                <div className="px-6 py-3 bg-red-500/20 border-t border-red-500/10 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 flex-1">
+                    <div className="w-2 h-2 bg-red-500 rounded-full" />
+                    <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest flex-1">{recordingError}</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setRecordingError(null)
+                      startRecording()
+                    }}
+                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-6 px-2 text-[9px] font-bold uppercase tracking-wider"
+                  >
+                    Retry
+                  </Button>
                 </div>
               )}
             </div>

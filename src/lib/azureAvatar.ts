@@ -98,6 +98,7 @@ export class AzureAvatarManager {
           this.videoElement.id = 'avatarVideo'
           this.videoElement.srcObject = event.streams[0]
           this.videoElement.autoplay = true
+          this.videoElement.muted = true
           this.videoElement.playsInline = true
           this.videoElement.className = 'w-full h-full object-cover'
 

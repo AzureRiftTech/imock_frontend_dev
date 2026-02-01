@@ -126,22 +126,56 @@ function Modal({
 function PastResultsModal({
   open,
   interview,
-  results,
   onClose,
 }: {
   open: boolean
   interview: Interview | null
-  results: InterviewResult[]
   onClose: () => void
 }) {
   const router = useRouter()
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const [pastResults, setPastResults] = React.useState<InterviewResult[]>([])
 
   const viewResultDetail = (result: InterviewResult) => {
-    if (interview) {
-      const resultId = result.result_id || result.id
+    if (!interview) return
+    const resultId = result.result_id || result.id
+    // Close modal then navigate: if we don't have a result id, go to the results list
+    onClose()
+    if (resultId) {
       router.push(`/mock-interview/${interview.interview_id}/result/${resultId}`)
+    } else {
+      router.push(`/mock-interview/${interview.interview_id}/result`)
     }
   }
+
+  React.useEffect(() => {
+    if (!open || !interview) return
+    setLoading(true)
+    setError(null)
+    if (typeof setPastResults === 'function') setPastResults([]);
+    (async () => {
+      try {
+        const res = await api.get(`/answer-analysis/results/${interview.interview_id}`)
+        const singleResult = res.data?.data as InterviewResult | null
+        if (singleResult) {
+          if (typeof setPastResults === 'function') setPastResults([singleResult])
+        } else {
+          if (typeof setPastResults === 'function') setPastResults([])
+        }
+      } catch (err: any) {
+        // If no results yet, server returns 404; show friendly message instead of console noise
+        if (err?.response?.status === 404) {
+          if (typeof setPastResults === 'function') setPastResults([])
+        } else {
+          setError(getApiErrorMessage(err) || 'Failed to load results')
+          console.error('Failed to fetch interview results', err)
+        }
+      } finally {
+        setLoading(false)
+      }
+    })()
+  }, [open, interview])
 
   return (
     <Modal open={open} title="Past Interview Results" onClose={onClose}>
@@ -153,11 +187,15 @@ function PastResultsModal({
           </div>
         )}
 
-        {results.length === 0 ? (
+        {loading ? (
+          <div className="text-sm text-zinc-600 py-4">Loading results…</div>
+        ) : error ? (
+          <div className="text-sm text-red-600 py-4">{error}</div>
+        ) : (!Array.isArray(pastResults) || pastResults.length === 0) ? (
           <div className="text-sm text-zinc-600 py-4">No past interview results found.</div>
         ) : (
           <div className="space-y-3">
-            {results.map((result) => (
+            {(Array.isArray(pastResults) ? pastResults : []).map((result) => (
               <div
                 key={result.result_id || result.id}
                 className="rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm"
@@ -167,32 +205,18 @@ function PastResultsModal({
                     <div className="text-sm font-semibold text-zinc-900">
                       Session: {result.session_token.slice(0, 12)}...
                     </div>
-                    <div className="mt-1 text-xs text-zinc-600">
-                      {formatDisplayDate(result.completed_at)}
-                    </div>
+                    <div className="mt-1 text-xs text-zinc-600">{formatDisplayDate(result.completed_at)}</div>
                     {result.overall_score !== null && result.overall_score !== undefined && (
-                      <div className="mt-2 text-sm text-zinc-700">
-                        Score: <span className="font-semibold">{result.overall_score}</span>
-                      </div>
+                      <div className="mt-2 text-sm text-zinc-700">Score: <span className="font-semibold">{result.overall_score}</span></div>
                     )}
                     {result.strengths && (
-                      <div className="mt-2 text-xs text-emerald-700">
-                        Strengths: {result.strengths.slice(0, 80)}{result.strengths.length > 80 ? '...' : ''}
-                      </div>
+                      <div className="mt-2 text-xs text-emerald-700">Strengths: {result.strengths.slice(0, 80)}{result.strengths.length > 80 ? '...' : ''}</div>
                     )}
                     {result.improvements && (
-                      <div className="mt-1 text-xs text-amber-700">
-                        Improvements: {result.improvements.slice(0, 80)}{result.improvements.length > 80 ? '...' : ''}
-                      </div>
+                      <div className="mt-1 text-xs text-amber-700">Improvements: {result.improvements.slice(0, 80)}{result.improvements.length > 80 ? '...' : ''}</div>
                     )}
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={() => viewResultDetail(result)}
-                    className="bg-brand-600 hover:bg-brand-700 text-white"
-                  >
-                    View Details
-                  </Button>
+                  <Button size="sm" onClick={() => viewResultDetail(result)} className="bg-brand-600 hover:bg-brand-700 text-white">View Details</Button>
                 </div>
               </div>
             ))}
@@ -280,11 +304,11 @@ function MockInterviewModal({
   const handleStart = (withAvatar: boolean = true, useAISpeech: boolean = false) => {
     if (!interview || selectedIndex === null) return
     const base = `/mock-interview/${interview.interview_id}`
-    let path = `${base}?index=${selectedIndex}&count=${questionCount}`
+    let path = `${base}?index=${selectedIndex}&duration=${questionCount}`
     if (!withAvatar && useAISpeech) {
-      path = `${base}/without_avatar_with_ai_speech?index=${selectedIndex}&count=${questionCount}`
+      path = `${base}/without_avatar_with_ai_speech?index=${selectedIndex}&duration=${questionCount}`
     } else if (!withAvatar) {
-      path = `${base}/without_avatar?index=${selectedIndex}&count=${questionCount}`
+      path = `${base}/without_avatar?index=${selectedIndex}&duration=${questionCount}`
     }
     router.push(path)
   }
@@ -355,29 +379,280 @@ function MockInterviewModal({
         )}
 
         <div className="pt-2">
-            <Label htmlFor="q_count">Number of Questions</Label>
-            <Input 
-                id="q_count"
-                type="number" 
-                min={1} 
-                max={20} 
-                value={questionCount} 
-                onChange={(e) => setQuestionCount(Number(e.target.value))}
-            />
+            <Label>Interview Duration</Label>
+            <div className="grid grid-cols-4 gap-2">
+                {[5, 10, 15, 20].map((mins) => (
+                    <button
+                        key={mins}
+                        className={`py-2 px-3 rounded-lg border font-medium transition-colors ${
+                            questionCount === mins
+                                ? 'bg-brand-500 text-white border-brand-500'
+                                : 'bg-white text-zinc-900 border-zinc-200 hover:border-brand-500'
+                        }`}
+                        onClick={() => setQuestionCount(mins)}
+                    >
+                        {mins} mins
+                    </button>
+                ))}
+            </div>
+            <p className="text-xs text-zinc-500 mt-2">Interview will auto-end when timer expires</p>
         </div>
 
-        <div className="flex justify-end gap-2 pt-4">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => handleStart(true)} disabled={selectedIndex === null || uploading || (loading && tab === 'select')}>
-            Start Interview (With Avatar)
-          </Button>
-          <Button variant="ghost" onClick={() => handleStart(false)} disabled={selectedIndex === null || uploading || (loading && tab === 'select')}>
-            Start Interview (No Avatar)
-          </Button>
-          <Button variant="outline" onClick={() => handleStart(false, true)} disabled={selectedIndex === null || uploading || (loading && tab === 'select')}>
-            Start Interview (No Avatar, AI Speech)
-          </Button>
+        <div className="flex justify-between gap-2 pt-4">
+          <div>
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => handleStart(true)} disabled={selectedIndex === null || uploading || (loading && tab === 'select')}>
+              Start Interview (With Avatar)
+            </Button>
+            <Button variant="ghost" onClick={() => handleStart(false)} disabled={selectedIndex === null || uploading || (loading && tab === 'select')}>
+              Start Interview (No Avatar)
+            </Button>
+            <Button variant="outline" onClick={() => handleStart(false, true)} disabled={selectedIndex === null || uploading || (loading && tab === 'select')}>
+              Start Interview (No Avatar, AI Speech)
+            </Button>
+          </div>
         </div>
+      </div>
+    </Modal>
+  )
+}
+
+// New Start Flow Modal (step 1: choose existing interview or enter job details, step 2: choose/upload resume)
+function StartFlowModal({ open, mode, interviews, initialInterviewId, onClose }: { open: boolean, mode: 'avatar' | 'ai_voice' | 'no_ai', interviews: Interview[], initialInterviewId?: number | null, onClose: () => void }) {
+  const router = useRouter()
+  const [step, setStep] = React.useState<1 | 2>(1)
+  const [useExisting, setUseExisting] = React.useState(true)
+  const [selectedInterviewId, setSelectedInterviewId] = React.useState<number | null>(initialInterviewId ?? (interviews.length > 0 ? interviews[0].interview_id : null))
+  const [jobDetails, setJobDetails] = React.useState<{ position: string; job_description: string; experience_required: string; category_name?: string }>({
+    position: '',
+    job_description: '',
+    experience_required: '',
+    category_name: '',
+  })
+
+  const [cvs, setCvs] = React.useState<CvRow[]>([])
+  const [loadingCvs, setLoadingCvs] = React.useState(false)
+  const [uploading, setUploading] = React.useState(false)
+  const [selectedCvIndex, setSelectedCvIndex] = React.useState<number | null>(null)
+  const [questionCount, setQuestionCount] = React.useState(5)
+  const [error, setError] = React.useState<string | null>(null)
+  const [tab, setTab] = React.useState<'select' | 'upload'>('select')
+  // Job categories for dropdown
+  const [categories, setCategories] = React.useState<any[]>([])
+  const loadCategories = async () => {
+    try {
+      const res = await api.get('/interviews/categories')
+      setCategories((res.data as any[]) || [])
+    } catch (err) {
+      // ignore load errors here; schedule page shows categories already
+      console.warn('[StartFlowModal] Failed to load categories', err)
+    }
+  }
+
+  React.useEffect(() => {
+    if (open) {
+      setStep(1)
+      setUseExisting(true)
+      setSelectedInterviewId(initialInterviewId ?? (interviews.length > 0 ? interviews[0].interview_id : null))
+      setJobDetails({ position: '', job_description: '', experience_required: '', category_name: '' })
+      setSelectedCvIndex(null)
+      // ensure categories are loaded for the dropdown
+      loadCategories()
+    }
+  }, [open, interviews, initialInterviewId])
+
+  const loadCvs = async (): Promise<CvRow[]> => {
+    setLoadingCvs(true)
+    try {
+      const res = await api.get('/mock-interview/resumes')
+      const list = (res.data?.resumes as CvRow[]) || []
+      setCvs(list)
+      // default selection: first if none selected
+      if (list.length > 0 && selectedCvIndex === null) setSelectedCvIndex(list[0].index)
+      return list
+    } catch (err) {
+      console.error(err)
+      return []
+    } finally {
+      setLoadingCvs(false)
+    }
+  }
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setError(null)
+    const formData = new FormData()
+    formData.append('cv', file)
+    try {
+      await api.post('/cv/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+      const list = await loadCvs()
+      // select newly uploaded resume (last item) if available
+      if (list.length > 0) {
+        const last = list[list.length - 1]
+        setSelectedCvIndex(last.index)
+      }
+      // switch to select tab so user can confirm
+      setTab('select')
+    } catch (err) {
+      setError(getApiErrorMessage(err) || 'Upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleNext = async () => {
+    if (step === 1) {
+      if (useExisting && !selectedInterviewId) {
+        setError('Please select an interview')
+        return
+      }
+      if (!useExisting) {
+        if (!jobDetails.position.trim()) { setError('Position is required'); return }
+      }
+      // go to resumes step
+      await loadCvs()
+      setStep(2)
+    }
+  }
+
+  const handleStart = async () => {
+    setError(null)
+    try {
+      let interviewId = selectedInterviewId
+      if (!useExisting) {
+        // create interview ad-hoc
+        const payload = {
+          company_name: jobDetails.position || 'Ad-hoc',
+          scheduled_at: new Date().toISOString(),
+          position: jobDetails.position,
+          category_name: jobDetails.category_name || undefined,
+          experience_required: jobDetails.experience_required || undefined,
+          job_description: jobDetails.job_description || undefined,
+        }
+        const res = await api.post('/interviews', payload)
+        const created = res.data as Interview
+        interviewId = created.interview_id
+      }
+
+      if (!interviewId) throw new Error('No interview id')
+      // build path based on mode
+      const base = `/mock-interview/${interviewId}`
+      let path = `${base}?index=${selectedCvIndex || 0}&duration=${questionCount}`
+      if (mode === 'ai_voice') path = `${base}/without_avatar_with_ai_speech?index=${selectedCvIndex || 0}&duration=${questionCount}`
+      else if (mode === 'no_ai') path = `${base}/without_avatar?index=${selectedCvIndex || 0}&duration=${questionCount}`
+
+      onClose()
+      router.push(path)
+    } catch (err) {
+      setError(getApiErrorMessage(err) || 'Failed to start interview')
+    }
+  }
+
+  return (
+    <Modal open={open} title="New Mock Interview" onClose={onClose}>
+      <div className="space-y-4">
+        {error && <div className="text-sm text-red-600">{error}</div>}
+
+        {step === 1 ? (
+          <div className="space-y-4">
+            <div className="flex gap-3">
+              <button className={`px-3 py-2 rounded-lg ${useExisting ? 'bg-brand-600 text-white' : 'bg-white border'}`} onClick={() => setUseExisting(true)}>Use existing interview</button>
+              <button className={`px-3 py-2 rounded-lg ${!useExisting ? 'bg-brand-600 text-white' : 'bg-white border'}`} onClick={() => setUseExisting(false)}>Enter job details</button>
+            </div>
+
+            {useExisting ? (
+              <div>
+                <Label>Choose interview</Label>
+                <select className="w-full rounded-lg border p-2" value={selectedInterviewId ?? ''} onChange={(e) => setSelectedInterviewId(Number(e.target.value))}>
+                  <option value="">Select...</option>
+                  {interviews.map((iv) => (
+                    <option key={iv.interview_id} value={iv.interview_id}>{iv.company_name} — {iv.position}</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                <Label>Position</Label>
+                <Input value={jobDetails.position} onChange={(e) => setJobDetails((p) => ({...p, position: e.target.value}))} placeholder="e.g., Software Developer" />
+                <Label>Category</Label>
+                <select className="h-10 w-full rounded-2xl border" value={jobDetails.category_name} onChange={(e) => setJobDetails((p) => ({...p, category_name: e.target.value }))}>
+                  <option value="">Select a category</option>
+                  {categories.map((c) => <option key={c.job_category_id} value={c.category_name}>{c.category_name}</option>)}
+                </select>
+                <Label>Experience</Label>
+                <Input value={jobDetails.experience_required} onChange={(e) => setJobDetails((p) => ({...p, experience_required: e.target.value}))} placeholder="e.g., 2+ years" />
+                <Label>Job description</Label>
+                <textarea className="rounded-lg border p-2" value={jobDetails.job_description} onChange={(e) => setJobDetails((p) => ({...p, job_description: e.target.value}))} />
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={onClose}>Cancel</Button>
+              <Button onClick={handleNext}>Next</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex gap-2 border-b border-zinc-200 pb-2">
+              <button className={`px-3 py-1 text-sm font-medium ${tab === 'select' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-zinc-500'}`} onClick={() => setTab('select')}>Choose Resume</button>
+              <button className={`px-3 py-1 text-sm font-medium ${tab === 'upload' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-zinc-500'}`} onClick={() => setTab('upload')}>Upload New</button>
+            </div>
+
+            {tab === 'select' ? (
+              loadingCvs ? (
+                <div className="text-sm text-zinc-500">Loading resumes...</div>
+              ) : cvs.length === 0 ? (
+                <div className="text-sm text-zinc-500">No resumes found. Please upload one.</div>
+              ) : (
+                <div className="grid gap-2 max-h-60 overflow-y-auto">
+                  {cvs.map((cv) => (
+                    <div key={cv.index} onClick={() => setSelectedCvIndex(cv.index)} className={`cursor-pointer rounded-xl border p-3 ${selectedCvIndex === cv.index ? 'border-brand-500 bg-brand-50' : 'border-zinc-200'}`}>
+                      <div className="font-medium text-zinc-900 truncate">{cv.filename}</div>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : (
+              <div className="grid gap-2">
+                <Label htmlFor="startflow_cv_upload">Upload resume (PDF)</Label>
+                <Input id="startflow_cv_upload" type="file" accept=".pdf,.doc,.docx" onChange={handleUpload} disabled={uploading} />
+                {uploading && <div className="text-sm text-zinc-500">Uploading and processing...</div>}
+                {error && <div className="text-sm text-red-600">{error}</div>}
+              </div>
+            )}
+
+            <div>
+              <Label>Interview Duration</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {[5, 10, 15, 20].map((mins) => (
+                  <button
+                    key={mins}
+                    className={`py-2 px-3 rounded-lg border font-medium transition-colors ${
+                      questionCount === mins
+                        ? 'bg-brand-500 text-white border-brand-500'
+                        : 'bg-white text-zinc-900 border-zinc-200 hover:border-brand-500'
+                    }`}
+                    onClick={() => setQuestionCount(mins)}
+                  >
+                    {mins} mins
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-zinc-500 mt-2">Interview will auto-end when timer expires</p>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setStep(1)}>Back</Button>
+              <Button onClick={handleStart} disabled={selectedCvIndex === null || uploading}>{
+                mode === 'avatar' ? 'Start (Avatar)' : mode === 'ai_voice' ? 'Start (AI Voice)' : 'Start (No AI)'
+              }</Button>
+            </div>
+          </div>
+        )}
       </div>
     </Modal>
   )
@@ -393,7 +668,9 @@ export default function InterviewsPage() {
 
   const [categories, setCategories] = React.useState<JobCategory[]>([])
   const [interviews, setInterviews] = React.useState<Interview[]>([])
-  const [interviewResults, setInterviewResults] = React.useState<Map<number, InterviewResult[]>>(new Map())
+  // Results are fetched on demand when the user opens the Past Results modal
+  // (avoids noisy 404s when no results exist)
+  const [interviewResults, setInterviewResults] = React.useState<Map<number, InterviewResult[]>>(new Map()) // kept for backward compat but not prefilled
 
   const [form, setForm] = React.useState<InterviewFormState>({
     company_name: '',
@@ -413,6 +690,30 @@ export default function InterviewsPage() {
   const [newCategoryName, setNewCategoryName] = React.useState('')
   const [newCategoryDescription, setNewCategoryDescription] = React.useState('')
 
+  // Start flow (three-card quick start)
+  const [startFlowOpen, setStartFlowOpen] = React.useState(false)
+  const [startMode, setStartMode] = React.useState<'avatar' | 'ai_voice' | 'no_ai'>('avatar')
+  const [startInitialInterviewId, setStartInitialInterviewId] = React.useState<number | null>(null)
+
+  // Smooth-scroll to the schedule form and focus the first input
+  const scrollToSchedule = (focus = true) => {
+    try {
+      const el = document.getElementById('schedule-section')
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        if (focus) {
+          const input = el.querySelector('input, textarea, select') as HTMLElement | null
+          if (input) input.focus()
+        }
+      }
+    } catch (e) {
+      // ignore in non-browser environments
+      console.warn('scrollToSchedule failed', e)
+    }
+  }
+
+  const router = useRouter()
+
   const load = React.useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -425,26 +726,8 @@ export default function InterviewsPage() {
       const loadedInterviews = (interviewsRes.data as Interview[]) || []
       setInterviews(loadedInterviews)
 
-      // Fetch results for all interviews
-      const resultsMap = new Map<number, InterviewResult[]>()
-      await Promise.all(
-        loadedInterviews.map(async (interview) => {
-          try {
-            const resultsRes = await api.get(`/answer-analysis/results/${interview.interview_id}`)
-            // Backend returns single result object in 'data' field, wrap it in array
-            const singleResult = resultsRes.data?.data as InterviewResult | null
-            if (singleResult) {
-              resultsMap.set(interview.interview_id, [singleResult])
-            }
-          } catch (err: any) {
-            // Ignore 404 errors (no results yet for this interview)
-            if (err?.response?.status !== 404) {
-              console.error(`Failed to load results for interview ${interview.interview_id}`, err)
-            }
-          }
-        })
-      )
-      setInterviewResults(resultsMap)
+      // Do not prefetch interview results to avoid noisy 404s. Results are fetched
+      // when the user opens the Past Results modal (see PastResultsModal implementation).
     } catch (err) {
       setError(getApiErrorMessage(err) || 'Failed to load interviews')
     } finally {
@@ -482,8 +765,12 @@ export default function InterviewsPage() {
         job_description: '',
       })
       await load()
-    } catch (err) {
-      setError(getApiErrorMessage(err) || 'Failed to create interview')
+    } catch (err: any) {
+      console.error('Create interview failed:', err)
+      const friendly = getApiErrorMessage(err)
+      if (friendly) setError(friendly)
+      else if (err?.response?.data) setError(typeof err.response.data === 'string' ? err.response.data : JSON.stringify(err.response.data))
+      else setError(err?.message || 'Failed to create interview')
     } finally {
       setSaving(false)
     }
@@ -580,13 +867,43 @@ export default function InterviewsPage() {
         </div>
       </div>
 
+      {/* Quick start cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+        <div className="rounded-2xl border p-6 flex flex-col items-start gap-3 hover:shadow-md">
+          <div className="text-xl font-semibold text-[#4C0E87]">Interview with AI avatar</div>
+          <div className="text-sm text-zinc-600">Visual avatar leading the interview, AI feedback and scoring.</div>
+          <div className="mt-4 w-full flex gap-2">
+            <Button className="flex-1" onClick={() => { setStartMode('avatar'); setStartFlowOpen(true); }}>Start Interview</Button>
+            <Button variant="secondary" onClick={() => router.push('/interviews/schedule')}>Schedule</Button>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border p-6 flex flex-col items-start gap-3 hover:shadow-md">
+          <div className="text-xl font-semibold text-[#4C0E87]">Interview with AI voice</div>
+          <div className="text-sm text-zinc-600">No avatar, AI voice asks questions and provides analysis.</div>
+          <div className="mt-4 w-full flex gap-2">
+            <Button className="flex-1" onClick={() => { setStartMode('ai_voice'); setStartFlowOpen(true); }}>Start Interview</Button>
+            <Button variant="secondary" onClick={() => router.push('/interviews/schedule')}>Schedule</Button>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border p-6 flex flex-col items-start gap-3 hover:shadow-md">
+          <div className="text-xl font-semibold text-[#4C0E87]">Interview without AI</div>
+          <div className="text-sm text-zinc-600">Practice without AI prompts or voice — manual flow.</div>
+          <div className="mt-4 w-full flex gap-2">
+            <Button className="flex-1" onClick={() => { setStartMode('no_ai'); setStartFlowOpen(true); }}>Start Interview</Button>
+            <Button variant="secondary" onClick={() => router.push('/interviews/schedule')}>Schedule</Button>
+          </div>
+        </div>
+      </div>
+
       {error ? (
         <Card className="border-red-200 bg-red-50">
           <CardContent className="py-4 text-sm text-red-800">{error}</CardContent>
         </Card>
       ) : null}
 
-      <Card className="bg-white/60">
+      <Card id="schedule-section" className="bg-white/60">
         <CardHeader>
           <CardTitle className="text-base">Schedule an interview</CardTitle>
         </CardHeader>
@@ -704,9 +1021,8 @@ export default function InterviewsPage() {
                     row={row}
                     onEdit={() => openEdit(row)}
                     onDelete={() => deleteInterview(row)}
-                    onStartMock={() => setMockInterviewTarget(row)}
+                    onStartMock={() => { setStartMode('avatar'); setStartInitialInterviewId(row.interview_id); setStartFlowOpen(true); }}
                     onViewResults={() => setViewingResults(row)}
-                    hasResults={interviewResults.has(row.interview_id)}
                   />
                 ))}
               </div>
@@ -731,9 +1047,8 @@ export default function InterviewsPage() {
                     row={row}
                     onEdit={() => openEdit(row)}
                     onDelete={() => deleteInterview(row)}
-                    onStartMock={() => setMockInterviewTarget(row)}
+                    onStartMock={() => { setStartMode('avatar'); setStartInitialInterviewId(row.interview_id); setStartFlowOpen(true); }}
                     onViewResults={() => setViewingResults(row)}
-                    hasResults={interviewResults.has(row.interview_id)}
                   />
                 ))}
               </div>
@@ -885,8 +1200,15 @@ export default function InterviewsPage() {
       <PastResultsModal
         open={Boolean(viewingResults)}
         interview={viewingResults}
-        results={viewingResults ? interviewResults.get(viewingResults.interview_id) || [] : []}
         onClose={() => setViewingResults(null)}
+      />
+
+      <StartFlowModal
+        open={startFlowOpen}
+        mode={startMode}
+        interviews={interviews}
+        initialInterviewId={startInitialInterviewId}
+        onClose={() => { setStartFlowOpen(false); setStartInitialInterviewId(null); }}
       />
 
       <MockInterviewModal
@@ -904,14 +1226,12 @@ function InterviewRow({
   onDelete,
   onStartMock,
   onViewResults,
-  hasResults,
 }: {
   row: Interview
   onEdit: () => void
   onDelete: () => void
   onStartMock: () => void
   onViewResults: () => void
-  hasResults: boolean
 }) {
   return (
     <div className="rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm">
@@ -926,11 +1246,9 @@ function InterviewRow({
           {row.status ? <div className="mt-2 text-xs text-zinc-600">Status: {row.status}</div> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {hasResults && (
-            <Button onClick={onViewResults} size="sm" variant="outline" className="border-emerald-600 text-emerald-700 hover:bg-emerald-50">
-              Past Interview Result
-            </Button>
-          )}
+          <Button onClick={onViewResults} size="sm" variant="outline" className="border-emerald-600 text-emerald-700 hover:bg-emerald-50">
+            Past Interview Result
+          </Button>
           <Button onClick={onStartMock} size="sm" className="bg-brand-600 hover:bg-brand-700 text-white">
             Mock Interview
           </Button>

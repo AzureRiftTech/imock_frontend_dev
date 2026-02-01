@@ -287,43 +287,97 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Check } from "lucide-react";
 import { FaCheck } from "react-icons/fa";
 import Image from "next/image";
+import { api } from '@/lib/api';
+import { getApiErrorMessage } from '@/lib/error';
 
+type Plan = {
+  plan_id: number
+  name: string
+  price_cents: number
+  interval: string
+  credits_allocated: number
+}
+
+type Subscription = {
+  subscription_id: number
+  plan_id: number
+  plan_name?: string
+  is_active: boolean
+}
 
 export default function SubscriptionsPage() {
   const [billing, setBilling] = useState("monthly");
-  const [selected, setSelected] = useState("standard");
+  const [selected, setSelected] = useState<number | null>(null);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [activeSubscription, setActiveSubscription] = useState<Subscription | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [subscribing, setSubscribing] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const plans = [
-    {
-      id: "basic",
-      name: "Basic",
-      price: 39,
-      save: "Save 10%",
-    },
-    {
-      id: "standard",
-      name: "Standard",
-      price: 49,
-      save: "Save 20%",
-      highlight: true,
-    },
-    {
-      id: "premium",
-      name: "Premium",
-      price: 79,
-      save: "Save 35%",
-    },
-    {
-      id: "enterprise",
-      name: "Enterprise",
-      price: null,
-      save: "Save 50%",
-    },
-  ];
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [plansRes, subRes] = await Promise.all([
+        api.get('/subscriptions/plans'),
+        api.get('/subscriptions/me').catch(() => ({ data: { subscription: null } }))
+      ]);
+      
+      const fetchedPlans = (plansRes.data?.plans as Plan[]) || [];
+      setPlans(fetchedPlans);
+      
+      const activeSub = (subRes.data?.subscription as Subscription) || null;
+      setActiveSubscription(activeSub);
+      
+      // Set selected to active plan or first plan
+      if (activeSub?.plan_id) {
+        setSelected(activeSub.plan_id);
+      } else if (fetchedPlans.length > 0) {
+        setSelected(fetchedPlans[0].plan_id);
+      }
+    } catch (err) {
+      setError(getApiErrorMessage(err) || 'Failed to load plans');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getSavePercentage = (index: number) => {
+    const percentages = ["Save 10%", "Save 20%", "Save 35%", "Save 50%"];
+    return percentages[index] || "Save 10%";
+  };
+
+  const formatPrice = (priceCents: number) => {
+    return Math.floor(priceCents / 100);
+  };
+
+  const handleSubscribe = async () => {
+    if (!selected) return;
+    
+    setSubscribing(true);
+    setError(null);
+    setSuccessMessage(null);
+    
+    try {
+      await api.post('/subscriptions/subscribe', { plan_id: selected });
+      setSuccessMessage('Successfully subscribed to the plan!');
+      // Reload data to update active subscription
+      await loadData();
+    } catch (err) {
+      setError(getApiErrorMessage(err) || 'Failed to subscribe to plan');
+    } finally {
+      setSubscribing(false);
+    }
+  };
 
   const features = [
     "Everything in Basic",
@@ -335,8 +389,40 @@ export default function SubscriptionsPage() {
     "Priority email support",
   ];
 
+  const selectedPlan = plans.find(p => p.plan_id === selected);
+  const isActivePlan = (planId: number) => activeSubscription?.plan_id === planId;
+
+  if (loading) {
+    return (
+      <div className="w-full p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-gray-600">Loading plans...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="w-full p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full p-6">
+      {error && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
+          {error}
+        </div>
+      )}
+      
+      {successMessage && (
+        <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4 text-green-800">
+          {successMessage}
+        </div>
+      )}
 
       <div className="flex justify-center items-center my-6">
         <div className="bg-white shadow-sm rounded-full p-1 flex gap-1 border">
@@ -362,12 +448,13 @@ export default function SubscriptionsPage() {
       </div>
       <div className=" w-full grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-5">
-          {plans.map((plan) => {
-            const active = selected === plan.id;
+          {plans.map((plan, index) => {
+            const active = selected === plan.plan_id;
+            const isActive = isActivePlan(plan.plan_id);
             return (
               <div
-                key={plan.id}
-                onClick={() => setSelected(plan.id)}
+                key={plan.plan_id}
+                onClick={() => setSelected(plan.plan_id)}
                 className={`cursor-pointer rounded-2xl border border-[#9f50e9]/40 p-8 flex items-center justify-between transition-all duration-300 ${active
                   ? "bg-[#9f50e9] text-white shadow-lg border-transparent"
                   : "bg-white hover:shadow-md"
@@ -390,6 +477,11 @@ export default function SubscriptionsPage() {
                         }`}
                     >
                       {plan.name}
+                      {isActive && (
+                        <span className="ml-2 text-xs font-normal">
+                          (Current)
+                        </span>
+                      )}
                     </p>
                     <span
                       className={`text-xs px-2 py-0.5 rounded-md mt-1 inline-block ${active
@@ -397,7 +489,7 @@ export default function SubscriptionsPage() {
                         : "bg-[#F1F0FB] text-[#897FFF]"
                         }`}
                     >
-                      {plan.save}
+                      {getSavePercentage(index)}
                     </span>
                   </div>
                 </div>
@@ -406,16 +498,10 @@ export default function SubscriptionsPage() {
                   className={`text-xl font-semibold ${active ? "text-white" : "text-[#4C0E87]"
                     }`}
                 >
-                  {plan.price ? (
-                    <>
-                      ₹{plan.price}
-                      <span className="text-sm font-normal ml-1">
-                        /Month
-                      </span>
-                    </>
-                  ) : (
-                    "Contact us"
-                  )}
+                  ₹{formatPrice(plan.price_cents)}
+                  <span className="text-sm font-normal ml-1">
+                    /{plan.interval === 'monthly' ? 'Month' : 'Year'}
+                  </span>
                 </div>
               </div>
             );
@@ -426,7 +512,18 @@ export default function SubscriptionsPage() {
         {/* RIGHT */}
         <div className="bg-white rounded-3xl shadow-md p-7 border relative overflow-visible z-10">
 
-          <h3 className="font-semibold text-gray-800 mb-5">Includes:</h3>
+          <h3 className="font-semibold text-gray-800 mb-3">
+            {selectedPlan ? selectedPlan.name + ' Plan Includes:' : 'Includes:'}
+          </h3>
+          
+          {selectedPlan && (
+            <div className="mb-5 p-3 bg-purple-50 rounded-lg">
+              <div className="text-sm text-gray-600">Credits Allocated</div>
+              <div className="text-2xl font-bold text-purple-600">
+                {selectedPlan.credits_allocated}
+              </div>
+            </div>
+          )}
 
           <ul className="space-y-4">
             {features.map((feature) => (
@@ -452,11 +549,25 @@ export default function SubscriptionsPage() {
 
         </div>
 
-        <div className="flex items-center gap-3 pt-2">
-          <span className="text-sm text-gray-600">Enable auto-renewal</span>
-          <div className="w-10 h-5 bg-purple-500 rounded-full relative">
-            <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full" />
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-600">Enable auto-renewal</span>
+            <div className="w-10 h-5 bg-purple-500 rounded-full relative">
+              <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full" />
+            </div>
           </div>
+          
+          <button
+            onClick={handleSubscribe}
+            disabled={subscribing || !selected || isActivePlan(selected || 0)}
+            className={`px-8 py-2.5 rounded-lg font-semibold transition-all shadow-lg ${
+              subscribing || !selected || isActivePlan(selected || 0)
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-[#9f50e9] text-white hover:bg-[#8d38dd]'
+            }`}
+          >
+            {subscribing ? 'Subscribing...' : isActivePlan(selected || 0) ? 'Current Plan' : 'Subscribe Now'}
+          </button>
         </div>
       </div>
     </div>

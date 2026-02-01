@@ -13,7 +13,7 @@ export class BrowserSpeechRecognitionManager {
     _subscriptionKey: string | undefined,
     _region: string | undefined,
     onTranscription: (result: TranscriptionResult) => void,
-    onError?: (error: string) => void
+    onError?: (error: any) => void
   ): Promise<void> {
     if (typeof window === 'undefined') {
       throw new Error('Speech recognition is not available on the server')
@@ -44,8 +44,16 @@ export class BrowserSpeechRecognitionManager {
       }
 
       this.recognition.onerror = (ev: any) => {
-        console.error('[BrowserSpeechRecognition] Error', ev)
-        if (onError) onError(ev?.message || 'Speech recognition error')
+        console.error('[BrowserSpeechRecognition] Error event:', {
+          error: ev?.error,
+          message: ev?.message,
+          type: ev?.type
+        })
+        
+        // Pass the full error event so caller can access ev.error property
+        if (onError) {
+          onError(ev)
+        }
       }
 
       this.recognition.onend = () => {

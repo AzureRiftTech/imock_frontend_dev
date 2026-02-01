@@ -1,7 +1,8 @@
 'use client';
 
 import Image from "next/image";
-import { useState } from "react";
+import * as React from 'react'
+import { useState, useEffect } from "react";
 import { FaRegQuestionCircle } from "react-icons/fa";
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { FiArrowUpRight } from "react-icons/fi";
@@ -9,6 +10,9 @@ import { FaRegCircleCheck } from "react-icons/fa6";
 import { RiEqualizerLine, RiImageEditLine } from "react-icons/ri";
 import { BiMessageSquareDots } from "react-icons/bi";
 import { CiUser } from "react-icons/ci";
+import { useAuth } from '@/context/auth-context'
+import { api } from '@/lib/api'
+import { getApiErrorMessage } from '@/lib/error'
 
 // import * as React from 'react'
 // import { FadeIn } from '@/components/motion/fade-in'
@@ -558,6 +562,64 @@ export default function DashboardPage() {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
+  // --- User dashboard data (dynamic) ---
+  type UserDashboardResp = {
+    subscription: any | null
+    upcomingInterviews: Array<any>
+    upcoming_count?: number
+    pastInterviews?: Array<any>
+    past_interviews_count?: number
+    schedule_count?: number
+    total_interviews?: number
+    credits: { credit_id: number; current_credits: number } | null
+    recent_invoices: Array<any>
+    total_credits?: number
+    avg_overall_score?: number
+    completed_count?: number
+  }
+
+  const { user } = useAuth()
+  const [dashLoading, setDashLoading] = useState(false)
+  const [dashError, setDashError] = useState<string | null>(null)
+  const [dashData, setDashData] = useState<UserDashboardResp | null>(null)
+
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+
+  useEffect(() => {
+    if (!user) return
+    const load = async () => {
+      setDashLoading(true)
+      setDashError(null)
+      try {
+        const res = await api.get('/users/me/dashboard')
+        // API returns { ok: true, subscription, upcomingInterviews, credits, total_credits, recent_invoices }
+        setDashData(res.data)
+        setLastUpdated(new Date())
+      } catch (err: any) {
+        setDashError(getApiErrorMessage(err) || 'Failed to load dashboard')
+      } finally {
+        setDashLoading(false)
+      }
+    }
+    load()
+  }, [user])
+
+  const refreshDash = async () => {
+    setDashLoading(true)
+    setDashError(null)
+    try {
+      const res = await api.get('/users/me/dashboard')
+      setDashData(res.data)
+      setLastUpdated(new Date())
+    } catch (err: any) {
+      setDashError(getApiErrorMessage(err) || 'Failed to refresh dashboard')
+    } finally {
+      setDashLoading(false)
+    }
+  }
+
+
+
   const firstDayOfMonth = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
@@ -603,6 +665,11 @@ export default function DashboardPage() {
           filter: "blur(40px)",
         }}
       />
+      {dashError ? (
+        <div className="mb-4">
+          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{dashError}</div>
+        </div>
+      ) : null}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 xl:gap-6">
 
         {/* LEFT COLUMN */}
@@ -611,36 +678,39 @@ export default function DashboardPage() {
             <h4 className="font-semibold">Matrix - Interview</h4>
             <div className="flex justify-center py-6">
               <div className="w-24 h-24 lg:w-28 lg:h-28 rounded-full border-[10px] border-[#e2c5fd] flex items-center justify-center text-lg font-bold">
-                73%
+                {dashLoading ? '…' : (dashData?.avg_overall_score !== null && dashData?.avg_overall_score !== undefined ? `${dashData.avg_overall_score}%` : '—')}
               </div>
             </div>
-            <p className="text-md text-gray-500">Total Value</p>
-            <p className="font-bold text-black">1,234</p>
+            <p className="text-md text-gray-500">Total Interviews</p>
+            <p className="font-bold text-black">{dashLoading ? 'Loading…' : String(dashData?.total_interviews ?? 0)}</p>
+            {!dashLoading ? (
+              <div className="text-sm text-zinc-600">Completed: {dashData?.completed_count ?? 0} · Upcoming: {dashData?.upcoming_count ?? 0}</div>
+            ) : null}
             <div className="flex justify-between py-5">
               <div className="flex flex-col items-start">
                 <div className="flex gap-2 items-center">
                   <p className="h-3 w-3 rounded-full bg-[#9F50E9]" />
-                  <p className="text-gray-500 text-md">Legend 1</p>
+                  <p className="text-gray-500 text-md">Completed</p>
                 </div>
-                <p className="font-bold text-black">1,234</p>
+                <p className="font-bold text-black">{dashData?.completed_count ?? 0}</p>
               </div>
               <div className="flex flex-col items-start">
                 <div className="flex gap-2 items-center">
                   <p className="h-3 w-3 rounded-full bg-[#EB5757]" />
-                  <p className="text-gray-500 text-md">Legend 2</p>
+                  <p className="text-gray-500 text-md">Upcoming</p>
                 </div>
-                <p className="font-bold text-black">123</p>
+                <p className="font-bold text-black">{dashData?.upcoming_count ?? 0}</p>
               </div>
             </div>
 
             <div className="flex justify-between">
               <div className="flex flex-col">
-                <p>Recent Metric</p>
-                <p className="font-bold text-black">123</p>
+                <p>Last result</p>
+                <p className="font-bold text-black">{dashData?.pastInterviews && dashData.pastInterviews[0] ? `${dashData.pastInterviews[0].overall_score ?? '—'}%` : '—'}</p>
               </div>
               <div className="text-[#9F50E9] flex items-center" >
                 <FiArrowUpRight size={25} />
-                <p className="font-bold text-md">0.05%</p>
+                <p className="font-bold text-md">{dashData?.pastInterviews && dashData.pastInterviews[0] ? `${dashData.pastInterviews[0].merit_pts ?? 0} pts` : '—'}</p>
               </div>
             </div>
           </Card>
@@ -672,44 +742,47 @@ export default function DashboardPage() {
               <FaRegQuestionCircle size={25} color="#4C0E87" />
             </div>
 
-            <div className="flex justify-center py-6">
-              <div className="relative w-32 h-16">
-                <svg viewBox="0 0 200 100" className="w-full h-full">
-                  {/* Background arc */}
-                  <path
-                    d="M10 100 A90 90 0 0 1 190 100"
-                    fill="none"
-                    stroke="#E9D8FD"
-                    strokeWidth="16"
-                    strokeLinecap="round"
-                  />
+            {/* Last result */}
+            {(() => {
+              const last = dashData?.pastInterviews && dashData.pastInterviews.length > 0 ? dashData.pastInterviews[0] : null
+              return (
+                <>
+                  <div className="flex justify-center py-6">
+                    <div className="relative w-32 h-16">
+                      <svg viewBox="0 0 200 100" className="w-full h-full">
+                        {/* Background arc */}
+                        <path d="M10 100 A90 90 0 0 1 190 100" fill="none" stroke="#E9D8FD" strokeWidth="16" strokeLinecap="round" />
 
-                  {/* Progress arc */}
-                  <path
-                    d="M10 100 A90 90 0 0 1 190 100"
-                    fill="none"
-                    stroke="#9F50E9"
-                    strokeWidth="16"
-                    strokeLinecap="round"
-                    strokeDasharray="282"
-                    strokeDashoffset="77"
-                  />
-                </svg>
+                        {/* Progress arc */}
+                        <path
+                          d="M10 100 A90 90 0 0 1 190 100"
+                          fill="none"
+                          stroke="#9F50E9"
+                          strokeWidth="16"
+                          strokeLinecap="round"
+                          strokeDasharray="282"
+                          strokeDashoffset={last && typeof last.overall_score === 'number' ? String(282 - (last.overall_score / 100) * 282) : '77'}
+                        />
+                      </svg>
 
-                {/* Center text */}
-                <div className="absolute inset-0 flex items-end justify-center pb-1 font-bold text-lg text-black">
-                  +73%
-                </div>
-              </div>
-            </div>
+                      {/* Center text */}
+                      <div className="absolute inset-0 flex items-end justify-center pb-1 font-bold text-lg text-black">
+                        {last && last.overall_score !== undefined && last.overall_score !== null ? `${last.overall_score}%` : '—'}
+                      </div>
+                    </div>
+                  </div>
 
-            <div className="flex flex-col">
-              <div className="flex gap-2 items-center">
-                <p className="h-4 w-4 rounded-full bg-[#9F50E9]" />
-                <p className="text-[#4C0E87] text-md">Metric</p>
-              </div>
-              <p className="font-bold text-black">1,234</p>
-            </div>
+                  <div className="flex flex-col">
+                    <div className="flex gap-2 items-center">
+                      <p className="h-4 w-4 rounded-full bg-[#9F50E9]" />
+                      <p className="text-[#4C0E87] text-md">{last ? (last.badge || 'Score') : 'No recent result'}</p>
+                    </div>
+                    <p className="font-bold text-black">{last ? `${last.merit_pts ?? 0} pts` : '—'}</p>
+                    {last && last.result_created_at ? <div className="text-xs text-zinc-500">{new Date(last.result_created_at).toLocaleString()}</div> : null}
+                  </div>
+                </>
+              )
+            })()}
           </Card>
         </div>
 
@@ -718,11 +791,25 @@ export default function DashboardPage() {
 
           {/* STATS ROW */}
           <div className="flex  flex-col md:flex-row w-full justify-between gap-2 xl:gap-10">
+            
             {/* <div className="grid grid-cols-3 gap-6"> */}
             <div className="flex flex-col w-full gap-5">
-              <SmallCard className="" title="Total Interviews" value="12" />
-              <SmallCard title="Community Activity" value="120 Points" />
-              <SmallCard title="Messages" value="50" />
+              <SmallCard
+                className="" title="Total Interviews"
+                value={dashLoading ? 'Loading…' : String(dashData?.total_interviews ?? 0)}
+                meta={!dashLoading ? `Upcoming: ${dashData?.upcoming_count ?? 0} · Past: ${dashData?.past_interviews_count ?? 0}` : undefined}
+              />
+
+              {/* Matrix - Interview summary small version for quick glance on mobile */}
+              <div className="block md:hidden">
+                <Card>
+                  <p className="text-sm text-gray-500">Avg Score</p>
+                  <h3 className="text-2xl font-bold">{dashLoading ? 'Loading…' : (dashData?.avg_overall_score !== null && dashData?.avg_overall_score !== undefined ? `${dashData.avg_overall_score}%` : '—')}</h3>
+                  <div className="text-xs text-zinc-600 mt-1">Completed: {dashData?.completed_count ?? 0} · Upcoming: {dashData?.upcoming_count ?? 0}</div>
+                </Card>
+              </div>
+              <SmallCard title="Community Activity" value={dashLoading ? 'Loading…' : (dashData?.total_credits !== undefined ? `${dashData.total_credits} Points` : '120 Points')} />
+              <SmallCard title="Messages" value={dashLoading ? 'Loading…' : (dashData?.recent_invoices ? String(dashData.recent_invoices.length) : '50')} />
             </div>
             {/* </div> */}
 
@@ -925,13 +1012,14 @@ function Card({ children, className = "" }: any) {
   );
 }
 
-function SmallCard({ title, value }: any) {
+function SmallCard({ title, value, meta }: any) {
   return (
     <Card className="bg-[#F7F4FF]">
       <div className="flex justify-between">
         <div>
           <p className="text-lg text-[#6C1BB8]">{title}</p>
           <h3 className="text-xl font-bold mt-2">{value}</h3>
+          {meta ? <div className="text-xs text-zinc-500 mt-1">{meta}</div> : null}
         </div>
         <p className="text-sm text-[#6C1BB8]">
           <FaRegQuestionCircle size={25} />

@@ -187,9 +187,9 @@ export default function MockInterviewPage() {
 
     try {
       const config: AvatarConfig = {
-        character: 'lisa',
-        style: 'casual-sitting',
-        voiceName: 'en-US-AvaMultilingualNeural'
+        character: 'meg',
+        style: 'business',
+        voiceName: 'en-IN-AnanyaNeural'
       }
 
       await azureAvatarManager.startAvatar(
@@ -603,7 +603,7 @@ export default function MockInterviewPage() {
           {/* Avatar Video Container (Azure SDK will append to this) */}
           <div
             ref={videoContainerRef}
-            className="w-full h-full [&_video]:scale-[1.1] [&_video]:translate-y-[5%] [&_video]:transition-transform [&_video]:duration-700 [&_video]:object-cover"
+            className="w-full h-full [&_video]:transition-transform [&_video]:duration-700 [&_video]:object-cover"
           />
 
           {/* Label */}

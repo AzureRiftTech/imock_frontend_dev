@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useEffect, useState, use } from 'react'
+import { useEffect, useState, use, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import {
@@ -73,25 +73,32 @@ export default function InterviewResultPage({ params }: { params: Promise<{ inte
     const [result, setResult] = useState<InterviewResult | null>(null)
     const [error, setError] = useState<string | null>(null)
 
-    useEffect(() => {
-        const fetchResults = async () => {
-            try {
-                const res = await api.get(`/answer-analysis/results/${interviewId}`)
-                if (res.data.success) {
-                    setResult(res.data.data)
-                } else {
-                    setError('Failed to fetch interview results')
-                }
-            } catch (err: any) {
+    const fetchResults = useCallback(async () => {
+        setLoading(true)
+        setError(null)
+        try {
+            const res = await api.get(`/answer-analysis/results/${interviewId}`)
+            if (res.data.success) {
+                setResult(res.data.data)
+            } else {
+                setError('Failed to fetch interview results')
+            }
+        } catch (err: any) {
+            // Handle 404 (no results yet) gracefully without noisy stack traces
+            if (err?.response?.status === 404) {
+                setError("No results found yet for this session. They may still be processing — try refreshing in a few moments.")
+            } else {
                 console.error('Fetch error:', err)
                 setError(err.response?.data?.error || 'Failed to load results')
-            } finally {
-                setLoading(false)
             }
+        } finally {
+            setLoading(false)
         }
-
-        fetchResults()
     }, [interviewId])
+
+    useEffect(() => {
+        fetchResults()
+    }, [fetchResults])
 
     if (loading) {
         return (
@@ -121,12 +128,17 @@ export default function InterviewResultPage({ params }: { params: Promise<{ inte
                             {error || "We couldn't find the results for this session."}
                         </p>
                     </div>
-                    <Button
-                        className="w-full h-14 rounded-2xl bg-white text-zinc-950 font-bold"
-                        onClick={() => router.push('/dashboard')}
-                    >
-                        Back to Dashboard
-                    </Button>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button
+                          className="w-full h-14 rounded-2xl bg-white text-zinc-950 font-bold"
+                          onClick={() => router.push('/dashboard')}
+                      >
+                          Back to Dashboard
+                      </Button>
+                      <Button variant="ghost" className="w-full h-14 rounded-2xl" onClick={() => fetchResults()}>
+                          <RefreshCw className="w-4 h-4 mr-2" /> Retry
+                      </Button>
+                    </div>
                 </div>
             </div>
         )

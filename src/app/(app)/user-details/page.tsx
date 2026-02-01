@@ -789,6 +789,10 @@ export default function UserDetailsPage() {
       // Accept response with either `{ details: {...} }` or direct object
       const returnedDetails = (res?.data && (res.data.details ?? res.data)) || null
       setDetails(returnedDetails as UserDetails)
+      // Update skills state from returned details if available
+      if (returnedDetails?.skills) {
+        setSkills(normalizeSkills(returnedDetails as UserDetails))
+      }
       // show toast and redirect after short delay so user sees confirmation
       setToast('User details saved')
       setSuccess('Saved. Redirecting to dashboard…')
