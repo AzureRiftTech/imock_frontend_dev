@@ -22,9 +22,9 @@ type UserDashboardResp = {
     price_cents?: number
     credits_allocated?: number
   } | null
-  upcomingInterviews: Array<any>
+  upcomingInterviews: Array<Record<string, unknown>>
   credits: { credit_id: number; current_credits: number } | null
-  recent_invoices: Array<any>
+  recent_invoices: Array<Record<string, unknown>>
   total_credits?: number
 }
 
@@ -145,14 +145,14 @@ export default function UserDashboardPage() {
                 <div className="text-sm text-zinc-600">Loading…</div>
               ) : data?.upcomingInterviews && data.upcomingInterviews.length > 0 ? (
                 <div className="space-y-2">
-                  {data.upcomingInterviews.map((i: any) => (
-                    <motion.div key={i.interview_id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.02 }} className="rounded-xl border border-white/70 bg-white/70 p-3 flex items-start justify-between gap-4">
+                  {data.upcomingInterviews.map((i: Record<string, unknown>) => (
+                    <motion.div key={String(i.interview_id)} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.02 }} className="rounded-xl border border-white/70 bg-white/70 p-3 flex items-start justify-between gap-4">
                       <div>
-                        <div className="text-sm font-semibold text-zinc-900">{i.company_name} — {i.position_name || i.position}</div>
-                        <div className="text-xs text-zinc-600">{i.scheduled_at ? new Date(i.scheduled_at).toLocaleString() : ''}</div>
+                        <div className="text-sm font-semibold text-zinc-900">{String(i.company_name)} — {String(i.position_name ?? i.position ?? '')}</div>
+                        <div className="text-xs text-zinc-600">{i.scheduled_at ? new Date(String(i.scheduled_at)).toLocaleString() : ''}</div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Link href={`/mock-interview/${i.interview_id}`}>
+                        <Link href={`/mock-interview/${String(i.interview_id)}`}>
                           <Button>Open</Button>
                         </Link>
                       </div>
@@ -185,13 +185,13 @@ export default function UserDashboardPage() {
               <div className="text-sm text-zinc-600">Loading…</div>
             ) : data?.recent_invoices && data.recent_invoices.length > 0 ? (
               <div className="space-y-2">
-                {data.recent_invoices.map((inv: any) => (
-                  <motion.div key={inv.invoice_id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.02 }} className="flex items-center justify-between">
+                {data.recent_invoices.map((inv: Record<string, unknown>) => (
+                  <motion.div key={String(inv.invoice_id)} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.02 }} className="flex items-center justify-between">
                     <div>
-                      <div className="font-medium">{inv.invoice_number}</div>
-                      <div className="text-xs text-zinc-500">{inv.issued_at ? new Date(inv.issued_at).toLocaleString() : ''}</div>
+                      <div className="font-medium">{String(inv.invoice_number ?? '')}</div>
+                      <div className="text-xs text-zinc-500">{inv.issued_at ? new Date(String(inv.issued_at)).toLocaleString() : ''}</div>
                     </div>
-                    <div className="text-sm font-semibold">{formatMoney(inv.total)}</div>
+                    <div className="text-sm font-semibold">{formatMoney(Number(inv.total as unknown as number))}</div>
                   </motion.div>
                 ))}
                 <div className="mt-2">

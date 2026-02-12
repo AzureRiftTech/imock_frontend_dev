@@ -13,7 +13,7 @@ interface Props {
   fieldName: string
   existingValue?: string
   index?: number
-  context?: any
+  context?: Record<string, unknown>
   onClose: () => void
   onApply: (text: string) => void
 }
@@ -31,7 +31,8 @@ export default function SuggestionPanel({ open, fieldName, existingValue, index,
     setSelected(null)
     fetchFieldSuggestions(fieldName, existingValue, format, index, context)
       .then((data) => {
-        const vs = (data?.variants || []).map((v: any) => ({ type: v.type, text: v.text }))
+        const raw = (data?.variants || []) as Array<Record<string, unknown>>
+        const vs = raw.map(v => ({ type: (v.type as Variant['type']) || 'suggestion', text: String(v.text || '') }))
         setVariants(vs)
         if (vs[0]) setSelected(vs[0].type)
       })

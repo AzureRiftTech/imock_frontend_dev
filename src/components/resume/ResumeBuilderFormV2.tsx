@@ -77,7 +77,7 @@ export default function ResumeBuilderFormV2() {
   const [suggestionField, setSuggestionField] = useState<string>('')
   const [suggestionIndex, setSuggestionIndex] = useState<number | undefined>(undefined)
   const [suggestionExisting, setSuggestionExisting] = useState<string | undefined>(undefined)
-  const [suggestionContext, setSuggestionContext] = useState<any>(undefined)
+  const [suggestionContext, setSuggestionContext] = useState<Record<string, unknown> | undefined>(undefined)
 
   // Load saved state on mount
   useEffect(() => {
@@ -183,9 +183,9 @@ export default function ResumeBuilderFormV2() {
     setSuggestionExisting(existing)
 
     // attach field-specific object context for better placeholder filling
-    if (field === 'experience') setSuggestionContext(resumeData.experiences?.[index || 0] || undefined)
-    else if (field === 'education') setSuggestionContext(resumeData.education?.[index || 0] || undefined)
-    else if (field === 'project') setSuggestionContext(resumeData.projects?.[index || 0] || undefined)
+    if (field === 'experience') setSuggestionContext(resumeData.experiences?.[index || 0] as unknown as Record<string, unknown> | undefined)
+    else if (field === 'education') setSuggestionContext(resumeData.education?.[index || 0] as unknown as Record<string, unknown> | undefined)
+    else if (field === 'project') setSuggestionContext(resumeData.projects?.[index || 0] as unknown as Record<string, unknown> | undefined)
     else setSuggestionContext(undefined)
 
     setSuggestionsOpen(true)

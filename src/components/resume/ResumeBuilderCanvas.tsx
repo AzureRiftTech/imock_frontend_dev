@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { Stage, Layer, Rect, Text } from 'react-konva'
+import type Konva from 'konva'
 import { jsPDF } from 'jspdf'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -103,7 +104,7 @@ export function ResumeBuilderCanvas() {
   const [loading, setLoading] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  const stageRef = React.useRef<any>(null)
+  const stageRef = React.useRef<Konva.Stage | null>(null)
 
   React.useEffect(() => {
     const loadState = async () => {

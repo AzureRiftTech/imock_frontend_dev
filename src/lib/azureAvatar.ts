@@ -4,10 +4,19 @@
  */
 
 import { api } from '@/lib/api'
+import { getErrorMessage } from '@/lib/error'
+
+type SpeechSDKShape = {
+  ResultReason?: Record<string, unknown> & { SynthesizingAudioCompleted?: unknown; Canceled?: unknown }
+  CancellationDetails?: { fromResult: (r: unknown) => Record<string, unknown> }
+  SpeechConfig?: { fromSubscription: (key: string, region: string) => unknown }
+  AvatarConfig?: { new (character: string, style: string): unknown }
+  AvatarSynthesizer?: { new (speechConfig: unknown, avatarConfig: unknown): { startAvatarAsync: (pc: RTCPeerConnection) => Promise<void>; speakTextAsync: (text: string, onSuccess: (r: unknown) => void, onError: (e: unknown) => void) => void; close?: () => Promise<void> } }
+} 
 
 declare global {
   interface Window {
-    SpeechSDK: any
+    SpeechSDK?: unknown
   }
 }
 
@@ -18,7 +27,7 @@ export interface AvatarConfig {
 }
 
 export class AzureAvatarManager {
-  private avatarSynthesizer: any = null
+  private avatarSynthesizer: unknown = null
   private peerConnection: RTCPeerConnection | null = null
   private videoElement: HTMLVideoElement | null = null
   private audioElement: HTMLAudioElement | null = null
@@ -76,15 +85,20 @@ export class AzureAvatarManager {
       const iceTokenRes = await api.get('/azure-avatar/ice-token')
       const iceConfig = iceTokenRes.data.data
 
-      const SpeechSDK = window.SpeechSDK
+      const SpeechSDKAny = (window as unknown as SpeechSDKShape).SpeechConfig ? (window as unknown as SpeechSDKShape) : (window as unknown as SpeechSDKShape)
+      if (!SpeechSDKAny) {
+        throw new Error('Speech SDK not available')
+      }
 
       // Create Speech Config
-      const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(subscriptionKey, region)
-      speechConfig.speechSynthesisVoiceName = config.voiceName || 'en-US-AvaMultilingualNeural'
+      const speechConfig = SpeechSDKAny.SpeechConfig?.fromSubscription(subscriptionKey, region)
+      if (!speechConfig) throw new Error('Speech SDK SpeechConfig not available');
+      ;(speechConfig as unknown as { speechSynthesisVoiceName?: string }).speechSynthesisVoiceName = config.voiceName || 'en-US-AvaMultilingualNeural'
 
       // Create Avatar Config
-      const avatarConfig = new SpeechSDK.AvatarConfig(config.character, config.style)
-      avatarConfig.backgroundColor = '#FFFFFFFF' // White background
+      const AvatarConfigCtor = SpeechSDKAny.AvatarConfig as unknown as { new (character: string, style: string): unknown }
+      const avatarConfig: unknown = new AvatarConfigCtor(config.character, config.style)
+      ;(avatarConfig as unknown as { backgroundColor?: string }).backgroundColor = '#FFFFFFFF' // White background
 
       // Create WebRTC peer connection
       this.peerConnection = new RTCPeerConnection(iceConfig)
@@ -121,16 +135,16 @@ export class AzureAvatarManager {
       this.peerConnection.addTransceiver('audio', { direction: 'sendrecv' })
 
       // Create Avatar Synthesizer
-      this.avatarSynthesizer = new SpeechSDK.AvatarSynthesizer(speechConfig, avatarConfig)
+      this.avatarSynthesizer = new (SpeechSDKAny.AvatarSynthesizer as unknown as { new (speechConfig: unknown, avatarConfig: unknown): { startAvatarAsync: (pc: RTCPeerConnection) => Promise<void>; speakTextAsync: (text: string, onSuccess: (r: unknown) => void, onError: (e: unknown) => void) => void; close?: () => Promise<void> } })(speechConfig, avatarConfig)
 
       // Start avatar
-      await this.avatarSynthesizer.startAvatarAsync(this.peerConnection)
+      await (this.avatarSynthesizer as unknown as { startAvatarAsync: (pc: RTCPeerConnection) => Promise<void> }).startAvatarAsync(this.peerConnection)
       this.isConnected = true
       console.log('[AzureAvatar] Avatar started successfully')
-    } catch (error: any) {
-      console.error('[AzureAvatar] Failed to start avatar:', error)
+    } catch (error: unknown) {
+      console.error('[AzureAvatar] Failed to start avatar:', getErrorMessage(error))
       if (onError) {
-        onError(error.message || 'Failed to start avatar')
+        onError(getErrorMessage(error) || 'Failed to start avatar')
       }
       throw error
     }
@@ -151,28 +165,31 @@ export class AzureAvatarManager {
         resolve()
       }, 30000) // 30s max for any single utterance
 
-      this.avatarSynthesizer.speakTextAsync(
+      ;(this.avatarSynthesizer as unknown as { speakTextAsync: (text: string, onSuccess: (r: unknown) => void, onError: (e: unknown) => void) => void }).speakTextAsync(
         text,
-        (result: any) => {
+        (result: unknown) => {
           clearTimeout(timeout)
-          const SpeechSDK = window.SpeechSDK
-          if (result.reason === SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
+          const resp = result as Record<string, unknown>
+          const sdk = (window as unknown as SpeechSDKShape)
+          const reason = resp.reason as unknown
+          const resultReason = (sdk?.ResultReason ?? {}) as Record<string, unknown> & { SynthesizingAudioCompleted?: unknown; Canceled?: unknown }
+          if (reason === resultReason.SynthesizingAudioCompleted) {
             console.log('[AzureAvatar] Speech completed')
             resolve()
           } else {
-            console.error('[AzureAvatar] Speech failed:', result.reason)
-            if (result.reason === SpeechSDK.ResultReason.Canceled) {
-              const cancellation = SpeechSDK.CancellationDetails.fromResult(result)
-              console.error('[AzureAvatar] Cancellation reason:', cancellation.reason)
-              console.error('[AzureAvatar] Error details:', cancellation.errorDetails)
+            console.error('[AzureAvatar] Speech failed:', reason)
+            if (resultReason.Canceled === reason) {
+              const cancellation = sdk?.CancellationDetails?.fromResult(result)
+              console.error('[AzureAvatar] Cancellation reason:', cancellation?.reason)
+              console.error('[AzureAvatar] Error details:', cancellation?.errorDetails)
             }
             // Resolve instead of reject to avoid hanging the interview flow
             resolve()
           }
         },
-        (error: any) => {
+        (error: unknown) => {
           clearTimeout(timeout)
-          console.error('[AzureAvatar] Speech error:', error)
+          console.error('[AzureAvatar] Speech error:', getErrorMessage(error))
           // Resolve instead of reject to avoid hanging the interview flow
           resolve()
         }
@@ -185,7 +202,7 @@ export class AzureAvatarManager {
    */
   async stopAvatar(): Promise<void> {
     if (this.avatarSynthesizer) {
-      await this.avatarSynthesizer.close()
+      await (this.avatarSynthesizer as unknown as { close?: () => Promise<void> }).close?.()
       this.avatarSynthesizer = null
     }
 
@@ -217,7 +234,7 @@ export class AzureAvatarManager {
 }
 
 // Lazy initialization - only create instance when accessed in browser
-let managerInstance: AzureAvatarManager | null = null
+const managerInstance: AzureAvatarManager | null = null
 
 export const azureAvatarManager = typeof window !== 'undefined'
   ? new AzureAvatarManager()
@@ -226,4 +243,4 @@ export const azureAvatarManager = typeof window !== 'undefined'
     speak: async () => { throw new Error('Avatar not available on server') },
     stopAvatar: async () => { },
     isAvatarConnected: () => false
-  } as any as AzureAvatarManager)
+  } as unknown as AzureAvatarManager)

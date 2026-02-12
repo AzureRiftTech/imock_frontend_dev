@@ -12,7 +12,9 @@ import { BiMessageSquareDots } from "react-icons/bi";
 import { CiUser } from "react-icons/ci";
 import { useAuth } from '@/context/auth-context'
 import { api } from '@/lib/api'
-import { getApiErrorMessage } from '@/lib/error'
+import { getApiErrorMessage, getErrorMessage } from '@/lib/error'
+import { useNotifications } from '@/context/notification-context'
+import axios from 'axios'
 
 // import * as React from 'react'
 // import { FadeIn } from '@/components/motion/fade-in'
@@ -215,7 +217,7 @@ import { getApiErrorMessage } from '@/lib/error'
 //                   <div className="text-sm text-zinc-600">Loading…</div>
 //                 ) : userDash?.upcomingInterviews && userDash.upcomingInterviews.length > 0 ? (
 //                   <div className="space-y-2">
-//                     {userDash.upcomingInterviews.map((i: any, idx: number) => (
+//                     {userDash.upcomingInterviews.map((i: Record<string, unknown>, idx: number) => (
 //                       <motion.div key={i.interview_id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.02 }} className="rounded-xl border border-white/70 bg-white/70 p-3 flex items-start justify-between gap-4">
 //                         <div>
 //                           <div className="text-sm font-semibold text-zinc-900">{i.company_name} — {i.position_name || i.position}</div>
@@ -303,7 +305,7 @@ import { getApiErrorMessage } from '@/lib/error'
 //                     <div className="flex items-center gap-4">
 //                       <div className="w-40">
 //                         <DonutChart
-//                           data={stats.plans.map((p: any, i: number) => ({ label: p.plan_name, value: Number(p.members || 0), color: PALETTE[i % PALETTE.length] }))}
+//                           data={stats.plans.map((p: Record<string, unknown>, i: number) => ({ label: p.plan_name, value: Number(p.members || 0), color: PALETTE[i % PALETTE.length] }))}
 //                         />
 //                         <div className="mt-2 text-xs text-zinc-500">Plan distribution</div>
 //                         <div className="mt-2 flex flex-wrap gap-2">
@@ -311,7 +313,7 @@ import { getApiErrorMessage } from '@/lib/error'
 //                         </div>
 //                       </div>
 //                       <div className="flex-1">
-//                         <PlanBarChart plans={stats.plans.map((p: any, i: number) => ({ ...p, color: PALETTE[i % PALETTE.length] }))} />
+//                         <PlanBarChart plans={stats.plans.map((p: Record<string, unknown>, i: number) => ({ ...p, color: PALETTE[i % PALETTE.length] }))} />
 //                       </div>
 //                     </div>
 //                   ) : (
@@ -333,7 +335,7 @@ import { getApiErrorMessage } from '@/lib/error'
 //                     <div className="text-sm text-zinc-600">No invoices yet.</div>
 //                   ) : stats && stats.last_invoices ? (
 //                     <div className="space-y-2 text-sm text-zinc-700">
-//                       {stats.last_invoices.map((inv: any, i: number) => (
+//                       {stats.last_invoices.map((inv: Record<string, unknown>, i: number) => (
 //                         <motion.div key={inv.invoice_id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }} className="flex items-center justify-between">
 //                           <div>
 //                             <div className="font-medium">{inv.invoice_number}</div>
@@ -358,7 +360,7 @@ import { getApiErrorMessage } from '@/lib/error'
 //                     <div className="text-sm text-zinc-600">No recent activity.</div>
 //                   ) : stats && stats.recent_activity ? (
 //                     <div className="space-y-2 text-sm text-zinc-700">
-//                       {stats.recent_activity.map((a: any, i: number) => (
+//                       {stats.recent_activity.map((a: Record<string, unknown>, i: number) => (
 //                         <motion.div key={`${a.invoice_id}-${i}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }} className="flex items-center justify-between">
 //                           <div>
 //                             <div className="font-medium">{a.payment_type === 'initial' ? (a.plan_name ? `Subscription: ${a.plan_name}` : 'Subscription') : a.payment_type === 'grant' ? 'Credits granted' : a.payment_type}</div>
@@ -384,7 +386,7 @@ import { getApiErrorMessage } from '@/lib/error'
 //                   <div className="text-sm text-zinc-600">No users yet.</div>
 //                 ) : stats && stats.last_users ? (
 //                   <div className="space-y-2 text-sm text-zinc-700">
-//                     {stats.last_users.map((u: any) => (
+//                     {stats.last_users.map((u: Record<string, unknown>) => (
 //                       <div key={u.user_id} className="flex items-center justify-between">
 //                         <div>
 //                           <div className="font-medium">{u.username}</div>
@@ -556,7 +558,20 @@ export default function DashboardPage() {
 
 
   const [current, setCurrent] = useState(0);
-  const [currentDate, setCurrentDate] = useState(new Date(2025, 4)); // May 2025
+  const [currentDate, setCurrentDate] = useState(new Date()); // Current date
+
+  // Job listings state
+  const [jobs, setJobs] = useState<Array<Record<string, unknown>>>([])
+  const [jobsLoading, setJobsLoading] = useState(false)
+  const [jobsError, setJobsError] = useState<string | null>(null)
+  const [currentJobIndex, setCurrentJobIndex] = useState(0)
+
+  // Calendar interaction state
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [dateInterviews, setDateInterviews] = useState<Array<Record<string, unknown>>>([])
+
+  // Notification context
+  const { notifications, unreadCount, markAsRead } = useNotifications()
 
   const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const year = currentDate.getFullYear();
@@ -564,15 +579,15 @@ export default function DashboardPage() {
 
   // --- User dashboard data (dynamic) ---
   type UserDashboardResp = {
-    subscription: any | null
-    upcomingInterviews: Array<any>
+    subscription: Record<string, unknown> | null
+    upcomingInterviews: Array<Record<string, unknown>>
     upcoming_count?: number
-    pastInterviews?: Array<any>
+    pastInterviews?: Array<Record<string, unknown>>
     past_interviews_count?: number
     schedule_count?: number
     total_interviews?: number
     credits: { credit_id: number; current_credits: number } | null
-    recent_invoices: Array<any>
+    recent_invoices: Array<Record<string, unknown>>
     total_credits?: number
     avg_overall_score?: number
     completed_count?: number
@@ -584,6 +599,7 @@ export default function DashboardPage() {
   const [dashData, setDashData] = useState<UserDashboardResp | null>(null)
 
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [userDetails, setUserDetails] = useState<Record<string, unknown> | null>(null)
 
   useEffect(() => {
     if (!user) return
@@ -595,13 +611,27 @@ export default function DashboardPage() {
         // API returns { ok: true, subscription, upcomingInterviews, credits, total_credits, recent_invoices }
         setDashData(res.data)
         setLastUpdated(new Date())
-      } catch (err: any) {
+      } catch (err: unknown) {
         setDashError(getApiErrorMessage(err) || 'Failed to load dashboard')
       } finally {
         setDashLoading(false)
       }
     }
     load()
+  }, [user])
+
+  // Fetch user details for job personalization
+  useEffect(() => {
+    if (!user) return
+    const loadUserDetails = async () => {
+      try {
+        const res = await api.get('/user-details/me')
+        setUserDetails(res.data?.details)
+      } catch (err) {
+        console.log('User details not available yet')
+      }
+    }
+    loadUserDetails()
   }, [user])
 
   const refreshDash = async () => {
@@ -611,12 +641,103 @@ export default function DashboardPage() {
       const res = await api.get('/users/me/dashboard')
       setDashData(res.data)
       setLastUpdated(new Date())
-    } catch (err: any) {
+    } catch (err: unknown) {
       setDashError(getApiErrorMessage(err) || 'Failed to refresh dashboard')
     } finally {
       setDashLoading(false)
     }
   }
+
+  // Fetch job listings from RapidAPI
+  useEffect(() => {
+    const fetchJobs = async () => {
+      setJobsLoading(true)
+      setJobsError(null)
+      try {
+        // Build personalized query based on user details
+        let jobQuery = 'developer jobs in india'
+        
+        if (userDetails) {
+          // Parse skills if it's a JSON string
+          let skills: string[] = []
+          if (userDetails.skills) {
+            try {
+              skills = typeof userDetails.skills === 'string' 
+                ? JSON.parse(userDetails.skills) 
+                : userDetails.skills
+            } catch {
+              skills = []
+            }
+          }
+
+          // Build query based on role and skills
+          if (userDetails.current_role === 'Student') {
+            // For students, use their branch/skills
+            if (skills.length > 0) {
+              jobQuery = `${skills.slice(0, 2).join(' ')} fresher jobs in india`
+            } else if (userDetails.branch) {
+              jobQuery = `${userDetails.branch} fresher jobs in india`
+            }
+          } else if (userDetails.current_role === 'Fresher') {
+            // For freshers, use their aspiring role and skills
+            if (userDetails.headline) {
+              jobQuery = `${userDetails.headline} fresher jobs in india`
+            } else if (skills.length > 0) {
+              jobQuery = `${skills.slice(0, 2).join(' ')} fresher jobs in india`
+            }
+          } else if (userDetails.current_role === 'Professional') {
+            // For professionals, use their current role and experience
+            if (userDetails.headline && userDetails.experience) {
+              jobQuery = `${userDetails.headline} jobs in india`
+            } else if (skills.length > 0) {
+              jobQuery = `${skills.slice(0, 2).join(' ')} jobs in india`
+            }
+          } else if (skills.length > 0) {
+            // Fallback to skills-based search
+            jobQuery = `${skills.slice(0, 2).join(' ')} jobs in india`
+          }
+
+          // Add location if available
+          if (userDetails.location) {
+            jobQuery = jobQuery.replace('india', `${userDetails.location}, india`)
+          }
+        }
+
+        const options = {
+          method: 'GET',
+          url: 'https://jsearch.p.rapidapi.com/search',
+          params: {
+            query: jobQuery,
+            page: '1',
+            num_pages: '1',
+            country: 'in', // India
+            date_posted: 'week'
+          },
+          headers: {
+            'x-rapidapi-key': process.env.NEXT_PUBLIC_RAPIDAPI_KEY || 'ff814a8f8cmsh0aa30af17e3e1cdp1ed0f2jsnbd8e56c092ca',
+            'x-rapidapi-host': process.env.NEXT_PUBLIC_RAPIDAPI_HOST || 'jsearch.p.rapidapi.com'
+          }
+        }
+        const response = await axios.request(options)
+        if (response.data && response.data.data) {
+          // Take first 5 jobs
+          setJobs(response.data.data.slice(0, 5))
+        }
+      } catch (error: unknown) {
+        console.error('Error fetching jobs:', getErrorMessage(error))
+        setJobsError('Failed to load job listings')
+      } finally {
+        setJobsLoading(false)
+      }
+    }
+    
+    // Only fetch jobs after user details are loaded or after a short delay
+    const timer = setTimeout(() => {
+      fetchJobs()
+    }, 500)
+    
+    return () => clearTimeout(timer)
+  }, [userDetails])
 
 
 
@@ -646,6 +767,67 @@ export default function DashboardPage() {
       prev === artifactImages.length - 1 ? 0 : prev + 1
     );
   };
+
+  const nextJob = () => {
+    setCurrentJobIndex((prev) =>
+      prev === jobs.length - 1 ? 0 : prev + 1
+    );
+  };
+
+  const prevJob = () => {
+    setCurrentJobIndex((prev) =>
+      prev === 0 ? jobs.length - 1 : prev - 1
+    );
+  };
+
+  const currentJob = jobs[currentJobIndex]
+
+  // Helper functions for calendar
+  const isSameDay = (date1: Date, date2: Date) => {
+    return date1.getFullYear() === date2.getFullYear() &&
+      date1.getMonth() === date2.getMonth() &&
+      date1.getDate() === date2.getDate()
+  }
+
+  const getInterviewsForDate = (day: number) => {
+    if (!dashData) return { upcoming: [], past: [] }
+    
+    const checkDate = new Date(year, month, day)
+    const upcoming = (dashData.upcomingInterviews || []).filter((interview: Record<string, unknown>) => {
+      const sched = (interview as Record<string, unknown>)?.scheduled_at
+      if (!sched || typeof sched !== 'string') return false
+      const interviewDate = new Date(sched)
+      return isSameDay(interviewDate, checkDate)
+    })
+    
+    const past = (dashData.pastInterviews || []).filter((interview: Record<string, unknown>) => {
+      const sched = (interview as Record<string, unknown>)?.scheduled_at
+      if (!sched || typeof sched !== 'string') return false
+      const interviewDate = new Date(sched)
+      return isSameDay(interviewDate, checkDate)
+    })
+    
+    return { upcoming, past }
+  }
+
+  const hasInterviews = (day: number) => {
+    const { upcoming, past } = getInterviewsForDate(day)
+    return upcoming.length > 0 || past.length > 0
+  }
+
+  const handleDateClick = (day: number) => {
+    const clickedDate = new Date(year, month, day)
+    const { upcoming, past } = getInterviewsForDate(day)
+    
+    if (upcoming.length > 0 || past.length > 0) {
+      setSelectedDate(clickedDate)
+      setDateInterviews([...upcoming, ...past])
+    } else {
+      setSelectedDate(null)
+      setDateInterviews([])
+    }
+  }
+  
   return (
     <div className="min-h-screen p-4 lg:p-6">
 
@@ -686,22 +868,7 @@ export default function DashboardPage() {
             {!dashLoading ? (
               <div className="text-sm text-zinc-600">Completed: {dashData?.completed_count ?? 0} · Upcoming: {dashData?.upcoming_count ?? 0}</div>
             ) : null}
-            <div className="flex justify-between py-5">
-              <div className="flex flex-col items-start">
-                <div className="flex gap-2 items-center">
-                  <p className="h-3 w-3 rounded-full bg-[#9F50E9]" />
-                  <p className="text-gray-500 text-md">Completed</p>
-                </div>
-                <p className="font-bold text-black">{dashData?.completed_count ?? 0}</p>
-              </div>
-              <div className="flex flex-col items-start">
-                <div className="flex gap-2 items-center">
-                  <p className="h-3 w-3 rounded-full bg-[#EB5757]" />
-                  <p className="text-gray-500 text-md">Upcoming</p>
-                </div>
-                <p className="font-bold text-black">{dashData?.upcoming_count ?? 0}</p>
-              </div>
-            </div>
+
 
             <div className="flex justify-between">
               <div className="flex flex-col">
@@ -775,10 +942,10 @@ export default function DashboardPage() {
                   <div className="flex flex-col">
                     <div className="flex gap-2 items-center">
                       <p className="h-4 w-4 rounded-full bg-[#9F50E9]" />
-                      <p className="text-[#4C0E87] text-md">{last ? (last.badge || 'Score') : 'No recent result'}</p>
+                      <p className="text-[#4C0E87] text-md">{last ? String(last.badge ?? 'Score') : 'No recent result'}</p>
                     </div>
                     <p className="font-bold text-black">{last ? `${last.merit_pts ?? 0} pts` : '—'}</p>
-                    {last && last.result_created_at ? <div className="text-xs text-zinc-500">{new Date(last.result_created_at).toLocaleString()}</div> : null}
+                    {last && last.result_created_at ? <div className="text-xs text-zinc-500">{new Date(String(last.result_created_at)).toLocaleString()}</div> : null}
                   </div>
                 </>
               )
@@ -795,7 +962,7 @@ export default function DashboardPage() {
             {/* <div className="grid grid-cols-3 gap-6"> */}
             <div className="flex flex-col w-full gap-5">
               <SmallCard
-                className="" title="Total Interviews"
+                title="Total Interviews"
                 value={dashLoading ? 'Loading…' : String(dashData?.total_interviews ?? 0)}
                 meta={!dashLoading ? `Upcoming: ${dashData?.upcoming_count ?? 0} · Past: ${dashData?.past_interviews_count ?? 0}` : undefined}
               />
@@ -868,25 +1035,135 @@ export default function DashboardPage() {
           {/* </div> */}
 
           {/* JOB CARD */}
-          <Card className="p-0 overflow-hidden bg-[#F7F4FF]">
-            <p className="text-[#4C0E87] font-semibold text-xl lg:text-2xl text-center py-3">New Job Vacancy</p>
-            <img
-              src="https://upload.wikimedia.org/wikipedia/commons/9/95/Infosys_logo.svg"
-              className="w-full h-32 lg:h-40 object-contain bg-white"
-            />
-            <div className="p-5">
-              <h3 className="font-bold text-xl lg:text-2xl text-[#4C0E87] text-center">Infosys Data Scientist Opening</h3>
-              <div className="flex justify-between items-center">
-                <p className="text-sm text-gray-500 mt-2">
-                  Lorem ipsum dolor sit amet consectetur.
-                  <br /> Nam egestas massa leo nunc insum
+          <Card className="p-0 overflow-hidden bg-[#F7F4FF] relative">
+            <div className="py-3 px-5">
+              <p className="text-[#4C0E87] font-semibold text-xl lg:text-2xl text-center">New Job Vacancy</p>
+              {userDetails && (
+                <p className="text-xs text-center text-[#9F50E9] mt-1">
+                  ✨ Personalized for {String(userDetails.current_role ?? 'you')}
+                  {userDetails.headline ? ` - ${String(userDetails.headline)}` : ''}
                 </p>
-                <p className="h-10 w-10 rounded-full bg-[#9F50E9] flex items-center justify-center hover:bg-[#8b44d9] transition">
-                  <FiArrowUpRight size={25} color="#fff" />
-                </p>
-              </div>
-
+              )}
             </div>
+            
+            {jobsLoading ? (
+              <div className="p-10 text-center">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#9F50E9] border-r-transparent"></div>
+                <p className="text-gray-500 mt-3">Finding perfect jobs for you...</p>
+              </div>
+            ) : jobsError ? (
+              <div className="p-10 text-center">
+                <p className="text-red-500">{jobsError}</p>
+                <p className="text-xs text-gray-500 mt-2">Showing general job listings</p>
+              </div>
+            ) : jobs.length === 0 ? (
+              <div className="p-10 text-center">
+                <p className="text-gray-500">No jobs available</p>
+                <p className="text-xs text-gray-400 mt-2">Try updating your skills in profile</p>
+              </div>
+            ) : currentJob ? (
+              <>
+                {/* Navigation Arrows */}
+                {jobs.length > 1 && (
+                  <>
+                    <button
+                      onClick={prevJob}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-[#9F50E9] text-white flex items-center justify-center shadow hover:scale-105 transition"
+                    >
+                      ‹
+                    </button>
+                    <button
+                      onClick={nextJob}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-[#9F50E9] text-white flex items-center justify-center shadow hover:scale-105 transition"
+                    >
+                      ›
+                    </button>
+                  </>
+                )}
+
+                {/* Company Logo */}
+                {currentJob.employer_logo ? (
+                  <div className="w-full h-32 lg:h-40 bg-white flex items-center justify-center p-4">
+                    <img
+                      src={String(currentJob.employer_logo ?? '')}
+                      alt={String(currentJob.employer_name ?? '')}
+                      className="max-w-full max-h-full object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        (e.target as HTMLImageElement).parentElement!.innerHTML = `<div class="text-2xl font-bold text-[#9F50E9]">${String(currentJob.employer_name ?? '')}</div>`;
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-32 lg:h-40 bg-white flex items-center justify-center">
+                    <div className="text-2xl font-bold text-[#9F50E9]">{String(currentJob.employer_name ?? '')}</div>
+                  </div>
+                )}
+
+                <div className="p-5">
+                  <h3 className="font-bold text-xl lg:text-2xl text-[#4C0E87] text-center line-clamp-2">
+                    {String(currentJob.job_title ?? '')}
+                  </h3>
+                  <p className="text-sm text-center text-[#6C1BB8] mt-1">
+                    {String(currentJob.employer_name ?? '')}
+                  </p>
+                  
+                  <div className="flex flex-wrap gap-2 justify-center mt-3">
+                    {typeof currentJob.job_city === 'string' && (
+                      <span className="px-3 py-1 bg-[#E6D7FF] rounded-full text-xs text-[#6C1BB8]">
+                        📍 {String(currentJob.job_city)}, {String(currentJob.job_state ?? '')}
+                      </span>
+                    )}
+                    {typeof currentJob.job_employment_type === 'string' && (
+                      <span className="px-3 py-1 bg-[#E6D7FF] rounded-full text-xs text-[#6C1BB8]">
+                        💼 {String(currentJob.job_employment_type)}
+                      </span>
+                    )}
+                    {currentJob.job_is_remote === true && (
+                      <span className="px-3 py-1 bg-[#E6D7FF] rounded-full text-xs text-[#6C1BB8]">
+                        🏠 Remote
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between items-center mt-4">
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-600 line-clamp-2">
+                        {String(currentJob.job_description ?? '').substring(0, 120) || 'Click to view full job description...'}
+                      </p>
+                      {typeof currentJob.job_posted_human_readable === 'string' && (
+                        <p className="text-xs text-gray-400 mt-1">Posted {String(currentJob.job_posted_human_readable)}</p>
+                      )}
+                    </div>
+                    <a
+                      href={String(currentJob.job_apply_link ?? '')}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-3 h-10 w-10 rounded-full bg-[#9F50E9] flex items-center justify-center hover:bg-[#8b44d9] transition flex-shrink-0"
+                    >
+                      <FiArrowUpRight size={25} color="#fff" />
+                    </a>
+                  </div>
+
+                  {/* Job count indicator */}
+                  {jobs.length > 1 && (
+                    <div className="flex justify-center gap-2 mt-4">
+                      {jobs.map((_, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setCurrentJobIndex(idx)}
+                          className={`h-2 rounded-full transition-all ${
+                            idx === currentJobIndex 
+                              ? 'w-6 bg-[#9F50E9]' 
+                              : 'w-2 bg-[#E6D7FF]'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : null}
           </Card>
         </div>
 
@@ -925,66 +1202,155 @@ export default function DashboardPage() {
               </div>
 
               {/* Dates */}
-              <div className="grid grid-cols-7 gap-y-3 text-sm text-[#6C1BB8]">
+              <div className="grid grid-cols-7 gap-y-2 text-sm text-[#6C1BB8]">
                 {/* Empty slots */}
                 {Array.from({ length: firstDayOfMonth }).map((_, i) => (
                   <div key={`empty-${i}`} />
                 ))}
 
                 {/* Days */}
-                {Array.from({ length: daysInMonth }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="text-center cursor-pointer hover:text-[#9F50E9]"
-                  >
-                    {i + 1}
-                  </div>
-                ))}
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                  const day = i + 1
+                  const { upcoming, past } = getInterviewsForDate(day)
+                  const hasUpcoming = upcoming.length > 0
+                  const hasPast = past.length > 0
+                  const isToday = isSameDay(new Date(year, month, day), new Date())
+                  const isSelected = selectedDate && isSameDay(new Date(year, month, day), selectedDate)
+
+                  return (
+                    <div
+                      key={i}
+                      onClick={() => handleDateClick(day)}
+                      className={`
+                        relative text-center cursor-pointer min-h-[32px] flex items-center justify-center rounded-lg transition-all
+                        ${isToday ? 'font-bold ring-2 ring-[#9F50E9]' : ''}
+                        ${isSelected ? 'bg-[#9F50E9] text-white' : ''}
+                        ${!isSelected && hasUpcoming ? 'bg-[#E6D7FF] hover:bg-[#d4bfff]' : ''}
+                        ${!isSelected && !hasUpcoming && hasPast ? 'bg-[#F0F0F0] hover:bg-[#E5E5E5]' : ''}
+                        ${!isSelected && !hasUpcoming && !hasPast ? 'hover:bg-[#F7F4FF]' : ''}
+                      `}
+                      title={
+                        hasUpcoming || hasPast
+                          ? `${hasUpcoming ? `${upcoming.length} upcoming` : ''} ${hasUpcoming && hasPast ? ', ' : ''} ${hasPast ? `${past.length} past` : ''}`
+                          : ''
+                      }
+                    >
+                      <span>{day}</span>
+                      {(hasUpcoming || hasPast) && !isSelected && (
+                        <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 flex gap-0.5">
+                          {hasUpcoming && <div className="h-1 w-1 rounded-full bg-[#9F50E9]" />}
+                          {hasPast && <div className="h-1 w-1 rounded-full bg-[#6C1BB8]" />}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
+
+            {/* Calendar Legend */}
+            <div className="flex items-center justify-center gap-4 text-xs mt-3">
+              <div className="flex items-center gap-1">
+                <div className="h-2 w-2 rounded-full bg-[#9F50E9]"></div>
+                <span className="text-[#6C1BB8]">Upcoming</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="h-2 w-2 rounded-full bg-[#6C1BB8]"></div>
+                <span className="text-[#6C1BB8]">Past</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="h-3 w-3 rounded border-2 border-[#9F50E9]"></div>
+                <span className="text-[#6C1BB8]">Today</span>
+              </div>
+            </div>
+
+            {/* Selected Date Interviews */}
+            {selectedDate && dateInterviews.length > 0 && (
+              <div className="mt-4 p-4 bg-white rounded-xl border border-[#E6D7FF]">
+                <h3 className="text-sm font-semibold text-[#6C1BB8] mb-2">
+                  {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                </h3>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {dateInterviews.map((interview: Record<string, unknown>, idx: number) => {
+                    const sched = (interview as Record<string, unknown>)?.scheduled_at
+                    const isPast = typeof sched === 'string' && new Date(sched) < new Date()
+                    const company = typeof (interview as Record<string, unknown>)?.company_name === 'string' ? (interview as Record<string, unknown>)?.company_name as string : 'Company'
+                    const position = typeof (interview as Record<string, unknown>)?.position_name === 'string' ? (interview as Record<string, unknown>)?.position_name as string : (typeof (interview as Record<string, unknown>)?.position === 'string' ? (interview as Record<string, unknown>)?.position as string : 'Position')
+                    const timeStr = typeof sched === 'string' ? new Date(sched).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ''
+                    return (
+                      <div
+                        key={idx}
+                        className={`p-2 rounded-lg text-xs ${
+                          isPast ? 'bg-gray-50' : 'bg-[#F7F4FF]'
+                        }`}
+                      >
+                        <div className="font-medium text-[#6C1BB8]">
+                          {company}
+                        </div>
+                        <div className="text-gray-600">
+                          {position}
+                        </div>
+                        <div className="text-gray-500 text-[10px] mt-1">
+                          {timeStr}
+                          {isPast && ' (Completed)'}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             <Card className="w-full max-w-sm rounded-2xl bg-[#FBF7FF] p-5">
               {/* Header */}
               <div className="flex items-center justify-between mb-4">
                 <p className="font-semibold text-black">
-                  Notifications <span className="text-gray-500 font-normal">(2 unread)</span>
+                  Notifications <span className="text-gray-500 font-normal">({unreadCount} unread)</span>
                 </p>
 
                 <RiEqualizerLine size={30} color="#9F50E9" />
               </div>
 
               {/* Notification items */}
-              <div className="space-y-4">
-                {/* Item */}
-                <div className="flex items-center gap-3 pb-4 border-b border-[#E9E0F5]">
-                  <BiMessageSquareDots size={25} />
-                  <div>
-                    <p className="text-md text-black">Muna John</p>
-                    <p className="text-xs text-gray-500">Invited you to a chat</p>
+              <div className="space-y-4 max-h-64 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p className="text-sm">No notifications yet</p>
+                    <p className="text-xs mt-1">Check back later!</p>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-3 pb-4 border-b border-[#E9E0F5]">
-                  <CiUser size={25} />
-                  <div>
-                    <p className="text-md text-black">Eva Solaris</p>
-                    <p className="text-xs text-gray-500">Invited you to a meeting</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <RiImageEditLine size={25} />
-                  <div>
-                    <p className="text-md text-black">Sean Pauline</p>
-                    <p className="text-xs text-gray-500">Prepared a report</p>
-                  </div>
-                </div>
+                ) : (
+                  notifications.slice(0, 5).map((notif, idx) => (
+                    <div 
+                      key={notif.id}
+                      onClick={() => markAsRead(notif.id)}
+                      className={`flex items-start gap-3 pb-4 border-b border-[#E9E0F5] cursor-pointer transition-all ${
+                        !notif.read ? 'bg-white/50 p-2 rounded-lg' : ''
+                      }`}
+                    >
+                      <div className="text-2xl flex-shrink-0">{notif.icon || '📢'}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-black truncate">{notif.title}</p>
+                          {!notif.read && (
+                            <div className="h-2 w-2 rounded-full bg-[#9F50E9] flex-shrink-0"></div>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-600 mt-1">{notif.message}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
 
               {/* Button */}
-              <button className="mt-5 w-full rounded-xl bg-[#F1E6FF] py-2 text-sm font-semibold text-[#9F50E9]">
-                Mark all as read
-              </button>
+              {unreadCount > 0 && (
+                <button 
+                  onClick={() => notifications.forEach(n => markAsRead(n.id))}
+                  className="mt-5 w-full rounded-xl bg-[#F1E6FF] py-2 text-sm font-semibold text-[#9F50E9] hover:bg-[#E6D7FF] transition"
+                >
+                  Mark all as read
+                </button>
+              )}
             </Card>
 
           </div>
@@ -1002,7 +1368,7 @@ export default function DashboardPage() {
 
 /* COMPONENTS */
 
-function Card({ children, className = "" }: any) {
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
     <div
       className={`bg-card border border-[#AE73F3]/60  rounded-2xl p-5 shadow-sm ${className}`}
@@ -1012,7 +1378,7 @@ function Card({ children, className = "" }: any) {
   );
 }
 
-function SmallCard({ title, value, meta }: any) {
+function SmallCard({ title, value, meta }: { title: string; value: React.ReactNode; meta?: React.ReactNode }) {
   return (
     <Card className="bg-[#F7F4FF]">
       <div className="flex justify-between">

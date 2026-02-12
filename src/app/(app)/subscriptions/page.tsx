@@ -368,13 +368,53 @@ export default function SubscriptionsPage() {
     setSuccessMessage(null);
     
     try {
-      await api.post('/subscriptions/subscribe', { plan_id: selected });
-      setSuccessMessage('Successfully subscribed to the plan!');
-      // Reload data to update active subscription
-      await loadData();
+      const response = await api.post('/subscriptions/subscribe', { plan_id: selected });
+      
+      // If requires payment with Razorpay
+      if (response.data.requires_payment && response.data.razorpay_subscription_id) {
+        // Load Razorpay Checkout
+        const options = {
+          key: response.data.razorpay_key,
+          subscription_id: response.data.razorpay_subscription_id,
+          name: 'iMock',
+          description: 'Subscribe to plan',
+          handler: async function (paymentResponse: { razorpay_payment_id?: string; razorpay_order_id?: string; razorpay_signature?: string; [key: string]: unknown }) {
+            try {
+              // Payment successful, reload data
+              setSuccessMessage('Payment successful! Your subscription is now active.');
+              await loadData();
+              setSubscribing(false);
+            } catch (err) {
+              setError('Payment completed but failed to verify. Please contact support.');
+              setSubscribing(false);
+            }
+          },
+          modal: {
+            ondismiss: function () {
+              setSubscribing(false);
+            }
+          },
+          theme: {
+            color: '#3399cc'
+          }
+        };
+        
+        // Razorpay is loaded via script at runtime; use narrow cast on window
+        const RazorpayCtor = (window as unknown as { Razorpay?: new (opts: unknown) => { open: () => void } }).Razorpay
+        if (RazorpayCtor) {
+          const rzp = new RazorpayCtor(options as unknown)
+          rzp.open()
+        } else {
+          setError('Payment gateway unavailable')
+        }
+      } else {
+        // Free plan or admin allocation - no payment required
+        setSuccessMessage('Successfully subscribed to the plan!');
+        await loadData();
+        setSubscribing(false);
+      }
     } catch (err) {
       setError(getApiErrorMessage(err) || 'Failed to subscribe to plan');
-    } finally {
       setSubscribing(false);
     }
   };

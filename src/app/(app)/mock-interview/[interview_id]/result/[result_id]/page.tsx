@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
+import { getApiErrorMessage, getErrorMessage } from '@/lib/error'
 import {
     Loader2,
     Trophy,
@@ -62,7 +63,7 @@ interface InterviewResult {
     merit_pts: number
     badge: string
     evaluations: Evaluation[]
-    summary: any
+    summary: unknown
 }
 
 export default function InterviewResultByIdPage({ params }: { params: Promise<{ interview_id: string; result_id: string }> }) {
@@ -82,9 +83,9 @@ export default function InterviewResultByIdPage({ params }: { params: Promise<{ 
                 } else {
                     setError('Failed to fetch result')
                 }
-            } catch (err: any) {
-                console.error('Fetch error:', err)
-                setError(err.response?.data?.error || 'Failed to load result')
+            } catch (err: unknown) {
+                console.error('Fetch error:', getErrorMessage(err))
+                setError(getApiErrorMessage(err) || 'Failed to load result')
             } finally {
                 setLoading(false)
             }
@@ -330,7 +331,7 @@ export default function InterviewResultByIdPage({ params }: { params: Promise<{ 
                             <h3 className="font-bold text-sm uppercase tracking-widest">Behavioral Analysis</h3>
                         </div>
                         <p className="text-white/60 text-sm leading-[1.8] italic">
-                            "The candidate demonstrates a {result.overall_score > 70 ? 'strong' : 'developing'} command of the subject matter. Their communication style is {result.overall_score > 80 ? 'exceptionally clear and structured' : 'competent but could benefit from more direct engagement with specific Technical pillars.'}"
+                            &ldquo;The candidate demonstrates a {result.overall_score > 70 ? 'strong' : 'developing'} command of the subject matter. Their communication style is {result.overall_score > 80 ? 'exceptionally clear and structured' : 'competent but could benefit from more direct engagement with specific Technical pillars.'}&rdquo;
                         </p>
                     </div>
                 </div>

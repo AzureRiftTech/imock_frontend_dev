@@ -30,3 +30,15 @@ export function getApiErrorMessage(err: unknown): string | null {
 
   return rawMessage
 }
+
+export function getErrorMessage(err: unknown): string {
+  const apiMsg = getApiErrorMessage(err)
+  if (apiMsg) return apiMsg
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
+  try {
+    return JSON.stringify(err)
+  } catch {
+    return String(err)
+  }
+}

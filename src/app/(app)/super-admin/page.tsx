@@ -26,6 +26,8 @@ type Plan = {
   price_cents: number
   interval: string
   credits_allocated: number
+  trial_period_days?: number
+  description?: string
 }
 
 type CreditPackage = {
@@ -55,6 +57,17 @@ type CreditsRow = {
   current_credits: number
   updated_at?: string | null
   created_at?: string | null
+}
+
+type ServiceRate = {
+  id: number
+  service_name: string
+  credits_per_unit: number
+  unit_type: string
+  description?: string | null
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
 }
 
 type UserSubscriptionRow = Record<string, unknown>
@@ -104,9 +117,9 @@ function Modal({
 
 export default function SuperAdminPage() {
   const { user } = useAuth()
-  const role = (user as any)?.role
+  const role = (user as User | undefined)?.role
 
-  const [tab, setTab] = React.useState<'users' | 'plans' | 'creditPackages' | 'categories' | 'aiModels' | 'credits'>(
+  const [tab, setTab] = React.useState<'users' | 'plans' | 'creditPackages' | 'categories' | 'aiModels' | 'credits' | 'serviceRates'>(
     'users'
   )
 
@@ -120,12 +133,14 @@ export default function SuperAdminPage() {
   const [categories, setCategories] = React.useState<JobCategory[]>([])
   const [aiModels, setAiModels] = React.useState<AiModel[]>([])
   const [credits, setCredits] = React.useState<CreditsRow[]>([])
+  const [serviceRates, setServiceRates] = React.useState<ServiceRate[]>([])
 
   const [userModal, setUserModal] = React.useState<{ mode: 'create' | 'edit'; user?: User } | null>(null)
   const [planModal, setPlanModal] = React.useState<{ mode: 'create' | 'edit'; plan?: Plan } | null>(null)
   const [pkgModal, setPkgModal] = React.useState<{ mode: 'create' | 'edit'; pkg?: CreditPackage } | null>(null)
   const [catModal, setCatModal] = React.useState<{ mode: 'create' | 'edit'; cat?: JobCategory } | null>(null)
   const [modelModal, setModelModal] = React.useState<{ mode: 'create' | 'edit'; model?: AiModel } | null>(null)
+  const [rateModal, setRateModal] = React.useState<{ mode: 'create' | 'edit'; rate?: ServiceRate } | null>(null)
 
   const [selectedUser, setSelectedUser] = React.useState<User | null>(null)
   const [selectedUserSubs, setSelectedUserSubs] = React.useState<UserSubscriptionRow[]>([])
@@ -140,13 +155,14 @@ export default function SuperAdminPage() {
     setSuccess(null)
 
     try {
-      const [usersRes, plansRes, pkgsRes, catsRes, modelsRes, creditsRes] = await Promise.all([
+      const [usersRes, plansRes, pkgsRes, catsRes, modelsRes, creditsRes, ratesRes] = await Promise.all([
         api.get('/super-admin/users'),
         api.get('/super-admin/plans'),
         api.get('/super-admin/credit-packages'),
         api.get('/super-admin/job-categories'),
         api.get('/super-admin/ai-models'),
         api.get('/super-admin/credits'),
+        api.get('/super-admin/service-rates'),
       ])
       setUsers((usersRes.data as User[]) || [])
       setPlans((plansRes.data as Plan[]) || [])
@@ -154,6 +170,7 @@ export default function SuperAdminPage() {
       setCategories((catsRes.data as JobCategory[]) || [])
       setAiModels((modelsRes.data as AiModel[]) || [])
       setCredits((creditsRes.data as CreditsRow[]) || [])
+      setServiceRates((ratesRes.data as ServiceRate[]) || [])
     } catch (err) {
       setError(getApiErrorMessage(err) || 'Failed to load super admin data')
     } finally {
@@ -259,6 +276,9 @@ export default function SuperAdminPage() {
         </TabButton>
         <TabButton active={tab === 'credits'} onClick={() => setTab('credits')}>
           Credits
+        </TabButton>
+        <TabButton active={tab === 'serviceRates'} onClick={() => setTab('serviceRates')}>
+          Service Rates
         </TabButton>
       </div>
 
@@ -503,6 +523,40 @@ export default function SuperAdminPage() {
         </Card>
       ) : null}
 
+      {tab === 'serviceRates' ? (
+        <CrudListCard
+          title="Service Rates"
+          createLabel="Create rate"
+          onCreate={() => setRateModal({ mode: 'create' })}
+          loading={loading}
+        >
+          {serviceRates.map((r) => (
+            <div key={r.id} className="rounded-2xl border border-white/70 bg-white/70 p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-zinc-900">
+                    {r.service_name} <span className="text-zinc-500">#{r.id}</span>
+                    {!r.is_active ? <span className="ml-2 text-xs text-red-600">(Inactive)</span> : null}
+                  </div>
+                  <div className="mt-1 text-sm text-zinc-600">
+                    {r.credits_per_unit} credits {r.unit_type}
+                  </div>
+                  {r.description ? <div className="mt-1 text-xs text-zinc-500">{r.description}</div> : null}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="secondary" onClick={() => setRateModal({ mode: 'edit', rate: r })}>
+                    Edit
+                  </Button>
+                  <Button variant="destructive" onClick={() => void deleteServiceRate(r, setError, setSuccess, loadAll)}>
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </CrudListCard>
+      ) : null}
+
       <Modal
         open={Boolean(userModal)}
         title={userModal?.mode === 'create' ? 'Create user' : 'Edit user'}
@@ -597,6 +651,26 @@ export default function SuperAdminPage() {
               setModelModal(null)
               await loadAll()
               setSuccess('AI model saved')
+            }}
+            setError={setError}
+          />
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(rateModal)}
+        title={rateModal?.mode === 'create' ? 'Create service rate' : 'Edit service rate'}
+        onClose={() => setRateModal(null)}
+      >
+        {rateModal ? (
+          <ServiceRateForm
+            mode={rateModal.mode}
+            rate={rateModal.rate}
+            onCancel={() => setRateModal(null)}
+            onSaved={async () => {
+              setRateModal(null)
+              await loadAll()
+              setSuccess('Service rate saved')
             }}
             setError={setError}
           />
@@ -759,9 +833,15 @@ function PlanForm({
 }) {
   const [saving, setSaving] = React.useState(false)
   const [name, setName] = React.useState(plan?.name || '')
-  const [priceCents, setPriceCents] = React.useState(String(plan?.price_cents ?? 0))
+  // Price is displayed/edited in INR (decimal). We convert to cents when submitting.
+  const [priceINR, setPriceINR] = React.useState(() => {
+    if (plan && typeof plan.price_cents === 'number') return (plan.price_cents / 100).toFixed(2);
+    return '0.00';
+  })
   const [interval, setInterval] = React.useState(plan?.interval || 'monthly')
   const [creditsAllocated, setCreditsAllocated] = React.useState(String(plan?.credits_allocated ?? 0))
+  const [trialDays, setTrialDays] = React.useState(String(plan?.trial_period_days ?? 0))
+  const [description, setDescription] = React.useState(plan?.description || '')
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -770,9 +850,11 @@ function PlanForm({
     try {
       const payload = {
         name,
-        price_cents: Number(priceCents) || 0,
+        price_cents: Math.round((Number(priceINR) || 0) * 100),
         interval,
         credits_allocated: Number(creditsAllocated) || 0,
+        trial_period_days: Number(trialDays) || 0,
+        description: description || null,
       }
       if (mode === 'create') {
         await api.post('/super-admin/plans', payload)
@@ -794,8 +876,8 @@ function PlanForm({
         <Input id="p_name" value={name} onChange={(e) => setName(e.target.value)} required />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="p_price">Price (cents)</Label>
-        <Input id="p_price" value={priceCents} onChange={(e) => setPriceCents(e.target.value)} />
+        <Label htmlFor="p_price">Price (INR)</Label>
+        <Input id="p_price" value={priceINR} onChange={(e) => setPriceINR(e.target.value)} />
       </div>
       <div className="grid gap-2">
         <Label htmlFor="p_interval">Interval</Label>
@@ -806,11 +888,28 @@ function PlanForm({
           onChange={(e) => setInterval(e.target.value)}
         >
           <option value="monthly">monthly</option>
+          <option value="quarterly">quarterly</option>
+          <option value="yearly">yearly</option>
         </select>
       </div>
       <div className="grid gap-2 md:col-span-2">
         <Label htmlFor="p_credits">Credits allocated</Label>
         <Input id="p_credits" value={creditsAllocated} onChange={(e) => setCreditsAllocated(e.target.value)} />
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="p_trial_days">Trial period (days)</Label>
+        <Input id="p_trial_days" value={trialDays} onChange={(e) => setTrialDays(e.target.value)} />
+      </div>
+
+      <div className="grid gap-2 md:col-span-2">
+        <Label htmlFor="p_description">Description</Label>
+        <textarea
+          id="p_description"
+          className="min-h-24 w-full rounded-2xl border border-zinc-200 bg-white/80 px-3 py-2 text-sm outline-none focus:border-brand-500"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
       </div>
       <div className="md:col-span-2 flex items-center justify-end gap-2">
         <Button type="button" variant="secondary" onClick={onCancel}>
@@ -1018,6 +1117,109 @@ function AiModelForm({
   )
 }
 
+function ServiceRateForm({
+  mode,
+  rate,
+  onCancel,
+  onSaved,
+  setError,
+}: {
+  mode: 'create' | 'edit'
+  rate?: ServiceRate
+  onCancel: () => void
+  onSaved: () => void | Promise<void>
+  setError: (v: string | null) => void
+}) {
+  const [saving, setSaving] = React.useState(false)
+  const [serviceName, setServiceName] = React.useState(rate?.service_name || '')
+  const [creditsPerUnit, setCreditsPerUnit] = React.useState(String(rate?.credits_per_unit ?? 1))
+  const [unitType, setUnitType] = React.useState(rate?.unit_type || 'per_use')
+  const [description, setDescription] = React.useState(rate?.description || '')
+  const [isActive, setIsActive] = React.useState(rate?.is_active ?? true)
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setError(null)
+    try {
+      const payload = {
+        service_name: serviceName,
+        credits_per_unit: Number(creditsPerUnit) || 1,
+        unit_type: unitType,
+        description,
+        is_active: isActive,
+      }
+      if (mode === 'create') {
+        await api.post('/super-admin/service-rates', payload)
+      } else if (rate) {
+        await api.put(`/super-admin/service-rates/${rate.id}`, payload)
+      }
+      await onSaved()
+    } catch (err) {
+      setError(getApiErrorMessage(err) || 'Failed to save service rate')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-2 md:col-span-2">
+        <Label htmlFor="sr_name">Service name</Label>
+        <Input
+          id="sr_name"
+          value={serviceName}
+          onChange={(e) => setServiceName(e.target.value)}
+          placeholder="ai_interview"
+          required
+          disabled={mode === 'edit'}
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="sr_credits">Credits per unit</Label>
+        <Input id="sr_credits" value={creditsPerUnit} onChange={(e) => setCreditsPerUnit(e.target.value)} required />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="sr_unit">Unit type</Label>
+        <select
+          id="sr_unit"
+          className="h-10 w-full rounded-2xl border border-zinc-200 bg-white/80 px-3 text-sm outline-none focus:border-brand-500"
+          value={unitType}
+          onChange={(e) => setUnitType(e.target.value)}
+        >
+          <option value="per_use">per use</option>
+          <option value="per_minute">per minute</option>
+          <option value="per_session">per session</option>
+        </select>
+      </div>
+      <div className="grid gap-2 md:col-span-2">
+        <Label htmlFor="sr_desc">Description</Label>
+        <Input id="sr_desc" value={description} onChange={(e) => setDescription(e.target.value)} />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="sr_active">Active</Label>
+        <select
+          id="sr_active"
+          className="h-10 w-full rounded-2xl border border-zinc-200 bg-white/80 px-3 text-sm outline-none focus:border-brand-500"
+          value={isActive ? '1' : '0'}
+          onChange={(e) => setIsActive(e.target.value === '1')}
+        >
+          <option value="1">active</option>
+          <option value="0">inactive</option>
+        </select>
+      </div>
+      <div className="md:col-span-2 flex items-center justify-end gap-2">
+        <Button type="button" variant="secondary" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={saving}>
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+    </form>
+  )
+}
+
 function CreditsRowEditor({
   row,
   onUpdated,
@@ -1154,3 +1356,23 @@ async function deleteAiModel(
     setError(getApiErrorMessage(err) || 'Failed to delete AI model')
   }
 }
+
+async function deleteServiceRate(
+  rate: ServiceRate,
+  setError: (v: string | null) => void,
+  setSuccess: (v: string | null) => void,
+  reload: () => Promise<void>
+) {
+  const ok = await sweetConfirm(`Delete service rate ${rate.service_name}?`)
+  if (!ok) return
+  setError(null)
+  setSuccess(null)
+  try {
+    await api.delete(`/super-admin/service-rates/${rate.id}`)
+    await reload()
+    setSuccess('Service rate deleted')
+  } catch (err) {
+    setError(getApiErrorMessage(err) || 'Failed to delete service rate')
+  }
+}
+

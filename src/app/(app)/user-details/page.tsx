@@ -174,7 +174,7 @@
 //       delete payload.created_at
 //       delete payload.updated_at
 
-//       let res: any
+//       let res: unknown
 
 //       if (detailsResemblesExisting(details)) {
 //         res = await api.put('/user-details/me', payload)
@@ -768,7 +768,7 @@ export default function UserDetailsPage() {
 
       console.log('Saving payload:', payload)
 
-      let res: any
+      let res: unknown
 
       try {
         if (detailsResemblesExisting(details)) {
@@ -787,10 +787,15 @@ export default function UserDetailsPage() {
       console.log('Save response:', res)
 
       // Accept response with either `{ details: {...} }` or direct object
-      const returnedDetails = (res?.data && (res.data.details ?? res.data)) || null
+      const returnedDetails = (() => {
+        const r = res as unknown
+        if (!r) return null
+        const rd = (r as { data?: unknown }).data
+        return rd ? ((rd as { details?: unknown }).details ?? rd) : r
+      })()
       setDetails(returnedDetails as UserDetails)
       // Update skills state from returned details if available
-      if (returnedDetails?.skills) {
+      if ((returnedDetails as UserDetails | null)?.skills) {
         setSkills(normalizeSkills(returnedDetails as UserDetails))
       }
       // show toast and redirect after short delay so user sees confirmation
@@ -843,7 +848,7 @@ export default function UserDetailsPage() {
 
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center py-20 px-4 bg-[#cbb8de]">
+    <div className="relative min-h-screen flex items-center justify-center py-20 bg-[#cbb8de]">
 
       <div
         className="hidden lg:block absolute top-32 xl:right-[10%] w-[200px] h-[200px] z-60"

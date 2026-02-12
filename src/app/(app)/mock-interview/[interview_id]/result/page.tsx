@@ -4,6 +4,7 @@
 import { useEffect, useState, use, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
+import { getApiErrorMessage, getErrorMessage } from '@/lib/error'
 import {
     Loader2,
     Trophy,
@@ -63,7 +64,7 @@ interface InterviewResult {
     merit_pts: number
     badge: string
     evaluations: Evaluation[]
-    summary: any
+    summary: unknown
 }
 
 export default function InterviewResultPage({ params }: { params: Promise<{ interview_id: string }> }) {
@@ -83,13 +84,13 @@ export default function InterviewResultPage({ params }: { params: Promise<{ inte
             } else {
                 setError('Failed to fetch interview results')
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             // Handle 404 (no results yet) gracefully without noisy stack traces
-            if (err?.response?.status === 404) {
+            if ((err as { response?: { status?: number } })?.response?.status === 404) {
                 setError("No results found yet for this session. They may still be processing — try refreshing in a few moments.")
             } else {
-                console.error('Fetch error:', err)
-                setError(err.response?.data?.error || 'Failed to load results')
+                console.error('Fetch error:', getErrorMessage(err))
+                setError(getApiErrorMessage(err) || 'Failed to load results')
             }
         } finally {
             setLoading(false)
@@ -427,7 +428,7 @@ export default function InterviewResultPage({ params }: { params: Promise<{ inte
                             <h3 className="font-bold text-sm uppercase tracking-widest">Behavioral Analysis</h3>
                         </div>
                         <p className="text-white/60 text-sm leading-[1.8] italic">
-                            "The candidate demonstrates a {result.overall_score > 70 ? 'strong' : 'developing'} command of the subject matter. Their communication style is {result.overall_score > 80 ? 'exceptionally clear and structured' : 'competent but could benefit from more direct engagement with specific Technical pillars.'}"
+                            &ldquo;The candidate demonstrates a {result.overall_score > 70 ? 'strong' : 'developing'} command of the subject matter. Their communication style is {result.overall_score > 80 ? 'exceptionally clear and structured' : 'competent but could benefit from more direct engagement with specific Technical pillars.'}&rdquo;
                         </p>
                     </div>
                 </div>

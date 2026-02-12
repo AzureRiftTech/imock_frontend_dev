@@ -1,5 +1,9 @@
 'use client'
 
+import Image from "next/image";
+import { FaRegQuestionCircle } from "react-icons/fa";
+import { FiArrowUpRight } from "react-icons/fi";
+
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
@@ -9,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { sweetConfirm, sweetAlert } from '@/lib/swal' 
+import { sweetConfirm, sweetAlert } from '@/lib/swal'
 
 type JobCategory = {
   job_category_id: number
@@ -123,302 +127,6 @@ function Modal({
   )
 }
 
-function PastResultsModal({
-  open,
-  interview,
-  onClose,
-}: {
-  open: boolean
-  interview: Interview | null
-  onClose: () => void
-}) {
-  const router = useRouter()
-  const [loading, setLoading] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
-  const [pastResults, setPastResults] = React.useState<InterviewResult[]>([])
-
-  const viewResultDetail = (result: InterviewResult) => {
-    if (!interview) return
-    const resultId = result.result_id || result.id
-    // Close modal then navigate: if we don't have a result id, go to the results list
-    onClose()
-    if (resultId) {
-      router.push(`/mock-interview/${interview.interview_id}/result/${resultId}`)
-    } else {
-      router.push(`/mock-interview/${interview.interview_id}/result`)
-    }
-  }
-
-  React.useEffect(() => {
-    if (!open || !interview) return
-    setLoading(true)
-    setError(null)
-    if (typeof setPastResults === 'function') setPastResults([]);
-    (async () => {
-      try {
-        const res = await api.get(`/answer-analysis/results/${interview.interview_id}`)
-        const singleResult = res.data?.data as InterviewResult | null
-        if (singleResult) {
-          if (typeof setPastResults === 'function') setPastResults([singleResult])
-        } else {
-          if (typeof setPastResults === 'function') setPastResults([])
-        }
-      } catch (err: any) {
-        // If no results yet, server returns 404; show friendly message instead of console noise
-        if (err?.response?.status === 404) {
-          if (typeof setPastResults === 'function') setPastResults([])
-        } else {
-          setError(getApiErrorMessage(err) || 'Failed to load results')
-          console.error('Failed to fetch interview results', err)
-        }
-      } finally {
-        setLoading(false)
-      }
-    })()
-  }, [open, interview])
-
-  return (
-    <Modal open={open} title="Past Interview Results" onClose={onClose}>
-      <div className="space-y-4">
-        {interview && (
-          <div className="pb-3 border-b border-zinc-200">
-            <div className="text-sm font-semibold text-zinc-900">{interview.company_name}</div>
-            <div className="text-sm text-zinc-600">{interview.position_name || interview.position}</div>
-          </div>
-        )}
-
-        {loading ? (
-          <div className="text-sm text-zinc-600 py-4">Loading results…</div>
-        ) : error ? (
-          <div className="text-sm text-red-600 py-4">{error}</div>
-        ) : (!Array.isArray(pastResults) || pastResults.length === 0) ? (
-          <div className="text-sm text-zinc-600 py-4">No past interview results found.</div>
-        ) : (
-          <div className="space-y-3">
-            {(Array.isArray(pastResults) ? pastResults : []).map((result) => (
-              <div
-                key={result.result_id || result.id}
-                className="rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold text-zinc-900">
-                      Session: {result.session_token.slice(0, 12)}...
-                    </div>
-                    <div className="mt-1 text-xs text-zinc-600">{formatDisplayDate(result.completed_at)}</div>
-                    {result.overall_score !== null && result.overall_score !== undefined && (
-                      <div className="mt-2 text-sm text-zinc-700">Score: <span className="font-semibold">{result.overall_score}</span></div>
-                    )}
-                    {result.strengths && (
-                      <div className="mt-2 text-xs text-emerald-700">Strengths: {result.strengths.slice(0, 80)}{result.strengths.length > 80 ? '...' : ''}</div>
-                    )}
-                    {result.improvements && (
-                      <div className="mt-1 text-xs text-amber-700">Improvements: {result.improvements.slice(0, 80)}{result.improvements.length > 80 ? '...' : ''}</div>
-                    )}
-                  </div>
-                  <Button size="sm" onClick={() => viewResultDetail(result)} className="bg-brand-600 hover:bg-brand-700 text-white">View Details</Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="flex justify-end gap-2 pt-4 border-t border-zinc-200">
-          <Button variant="secondary" onClick={onClose}>Close</Button>
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
-function MockInterviewModal({
-  open,
-  interview,
-  onClose,
-}: {
-  open: boolean
-  interview: Interview | null
-  onClose: () => void
-}) {
-  const router = useRouter()
-  const [cvs, setCvs] = React.useState<CvRow[]>([])
-  const [loading, setLoading] = React.useState(false)
-  const [uploading, setUploading] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
-  const [selectedIndex, setSelectedIndex] = React.useState<number | null>(null)
-  const [questionCount, setQuestionCount] = React.useState<number>(5)
-  const [tab, setTab] = React.useState<'select' | 'upload'>('select')
-  
-  React.useEffect(() => {
-    if (open) {
-      loadCvs()
-      setTab('select')
-    }
-  }, [open, interview])
-
-  const loadCvs = async () => {
-    setLoading(true)
-    try {
-      // Changed to use the mock-interview resumes endpoint which reads from user_details
-      const res = await api.get('/mock-interview/resumes')
-      const list = (res.data?.resumes as CvRow[]) || []
-      setCvs(list)
-      if (list.length > 0) setSelectedIndex(list[0].index)
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    
-    setUploading(true)
-    setError(null)
-    const formData = new FormData()
-    formData.append('cv', file)
-    
-    try {
-      // Note: This upload currently goes to the CV processing service. 
-      // If this system is separate from user_details.resumes, this might not automatically appear in the list 
-      // unless the backend syncs them. For now, we'll existing logic but warn if empty.
-      const res = await api.post('/cv/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      const data = res.data
-      await loadCvs()
-      // If we got a cv_id, we can't easily map it to index unless it was added to user_details.
-      // We'll rely on reloading to find the new one, or select the last one if added.
-      // For this specific 'user_details' request, we might need a different upload endpoint 
-      // or assume the backend handles the sync. 
-      // If loadCvs returns a new list, we try to select the last one.
-    } catch (err) {
-      setError(getApiErrorMessage(err) || 'Upload failed')
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  const handleStart = (withAvatar: boolean = true, useAISpeech: boolean = false) => {
-    if (!interview || selectedIndex === null) return
-    const base = `/mock-interview/${interview.interview_id}`
-    let path = `${base}?index=${selectedIndex}&duration=${questionCount}`
-    if (!withAvatar && useAISpeech) {
-      path = `${base}/without_avatar_with_ai_speech?index=${selectedIndex}&duration=${questionCount}`
-    } else if (!withAvatar) {
-      path = `${base}/without_avatar?index=${selectedIndex}&duration=${questionCount}`
-    }
-    router.push(path)
-  }
-
-
-  return (
-    <Modal open={open} title="Start Mock Interview" onClose={onClose}>
-      <div className="space-y-4">
-        {error && <div className="text-sm text-red-600">{error}</div>}
-        
-        <div className="flex gap-2 border-b border-zinc-200 pb-2">
-           <button 
-             className={`px-3 py-1 text-sm font-medium ${tab === 'select' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-zinc-500'}`}
-             onClick={() => setTab('select')}
-           >
-             Select Resume
-           </button>
-           <button 
-             className={`px-3 py-1 text-sm font-medium ${tab === 'upload' ? 'text-brand-600 border-b-2 border-brand-600' : 'text-zinc-500'}`}
-             onClick={() => setTab('upload')}
-           >
-             Upload New
-           </button>
-        </div>
-          
-        {tab === 'select' ? (
-          <div className="space-y-4 pt-2">
-            {loading ? (
-              <div className="text-sm text-zinc-500">Loading resumes...</div>
-            ) : cvs.length === 0 ? (
-              <div className="text-sm text-zinc-500">No resumes found. Please upload one.</div>
-            ) : (
-              <div className="space-y-2">
-                <Label>Choose a resume</Label>
-                <div className="grid gap-2 max-h-60 overflow-y-auto">
-                  {cvs.map((cv) => (
-                    <div
-                      key={cv.index}
-                      className={`cursor-pointer rounded-xl border p-3 transition-colors ${
-                        selectedIndex === cv.index
-                          ? 'border-brand-500 bg-brand-50'
-                          : 'border-zinc-200 hover:bg-zinc-50'
-                      }`}
-                      onClick={() => setSelectedIndex(cv.index)}
-                    >
-                      <div className="font-medium text-zinc-900 truncate">{cv.filename}</div>
-                      <div className="text-xs text-zinc-500">{cv.is_pdf ? 'PDF Document' : 'Document'}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-4 pt-2">
-            <div className="grid gap-2">
-              <Label htmlFor="cv_upload">Upload Resume (PDF)</Label>
-              <Input
-                id="cv_upload"
-                type="file"
-                accept=".pdf,.doc,.docx"
-                onChange={handleUpload}
-                disabled={uploading}
-              />
-              {uploading && <div className="text-sm text-zinc-500">Uploading and processing...</div>}
-            </div>
-          </div>
-        )}
-
-        <div className="pt-2">
-            <Label>Interview Duration</Label>
-            <div className="grid grid-cols-4 gap-2">
-                {[5, 10, 15, 20].map((mins) => (
-                    <button
-                        key={mins}
-                        className={`py-2 px-3 rounded-lg border font-medium transition-colors ${
-                            questionCount === mins
-                                ? 'bg-brand-500 text-white border-brand-500'
-                                : 'bg-white text-zinc-900 border-zinc-200 hover:border-brand-500'
-                        }`}
-                        onClick={() => setQuestionCount(mins)}
-                    >
-                        {mins} mins
-                    </button>
-                ))}
-            </div>
-            <p className="text-xs text-zinc-500 mt-2">Interview will auto-end when timer expires</p>
-        </div>
-
-        <div className="flex justify-between gap-2 pt-4">
-          <div>
-            <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={() => handleStart(true)} disabled={selectedIndex === null || uploading || (loading && tab === 'select')}>
-              Start Interview (With Avatar)
-            </Button>
-            <Button variant="ghost" onClick={() => handleStart(false)} disabled={selectedIndex === null || uploading || (loading && tab === 'select')}>
-              Start Interview (No Avatar)
-            </Button>
-            <Button variant="outline" onClick={() => handleStart(false, true)} disabled={selectedIndex === null || uploading || (loading && tab === 'select')}>
-              Start Interview (No Avatar, AI Speech)
-            </Button>
-          </div>
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
 // New Start Flow Modal (step 1: choose existing interview or enter job details, step 2: choose/upload resume)
 function StartFlowModal({ open, mode, interviews, initialInterviewId, onClose }: { open: boolean, mode: 'avatar' | 'ai_voice' | 'no_ai', interviews: Interview[], initialInterviewId?: number | null, onClose: () => void }) {
   const router = useRouter()
@@ -440,11 +148,11 @@ function StartFlowModal({ open, mode, interviews, initialInterviewId, onClose }:
   const [error, setError] = React.useState<string | null>(null)
   const [tab, setTab] = React.useState<'select' | 'upload'>('select')
   // Job categories for dropdown
-  const [categories, setCategories] = React.useState<any[]>([])
+  const [categories, setCategories] = React.useState<Array<Record<string, unknown>>>([])
   const loadCategories = async () => {
     try {
       const res = await api.get('/interviews/categories')
-      setCategories((res.data as any[]) || [])
+      setCategories((res.data as Array<Record<string, unknown>>) || [])
     } catch (err) {
       // ignore load errors here; schedule page shows categories already
       console.warn('[StartFlowModal] Failed to load categories', err)
@@ -539,6 +247,25 @@ function StartFlowModal({ open, mode, interviews, initialInterviewId, onClose }:
       }
 
       if (!interviewId) throw new Error('No interview id')
+
+      // Consume credits before starting the interview
+      try {
+        await api.post('/credits/consume-interview', {
+          service_type: mode, // 'avatar', 'ai_voice', or 'no_ai'
+          duration: questionCount
+        })
+      } catch (creditErr: unknown) {
+        // Show specific error message for insufficient credits
+        const errResp = ((creditErr as Record<string, unknown>)?.response) as Record<string, unknown> | undefined
+        const errData = errResp?.data as Record<string, unknown> | undefined
+        if (errData && errData.error === 'Insufficient credits') {
+          const available = errData.available as number | undefined
+          const required = errData.required as number | undefined
+          throw new Error(`Insufficient credits. You need ${required ?? 'N/A'} credits but only have ${available ?? '0'}. Please purchase more credits.`)
+        }
+        throw creditErr
+      }
+
       // build path based on mode
       const base = `/mock-interview/${interviewId}`
       let path = `${base}?index=${selectedCvIndex || 0}&duration=${questionCount}`
@@ -560,8 +287,8 @@ function StartFlowModal({ open, mode, interviews, initialInterviewId, onClose }:
         {step === 1 ? (
           <div className="space-y-4">
             <div className="flex gap-3">
-              <button className={`px-3 py-2 rounded-lg ${useExisting ? 'bg-brand-600 text-white' : 'bg-white border'}`} onClick={() => setUseExisting(true)}>Use existing interview</button>
-              <button className={`px-3 py-2 rounded-lg ${!useExisting ? 'bg-brand-600 text-white' : 'bg-white border'}`} onClick={() => setUseExisting(false)}>Enter job details</button>
+              <button className={`px-3 py-2 rounded-lg ${useExisting ? 'bg-[#8D38DD] text-white' : 'bg-white border'}`} onClick={() => setUseExisting(true)}>Use existing interview</button>
+              <button className={`px-3 py-2 rounded-lg ${!useExisting ? 'border border-[#8D38DD] text-white' : 'text-[#8D38DD] bg-white border border-[##8D38DD]'}`} onClick={() => setUseExisting(false)}>Enter job details</button>
             </div>
 
             {useExisting ? (
@@ -581,7 +308,7 @@ function StartFlowModal({ open, mode, interviews, initialInterviewId, onClose }:
                 <Label>Category</Label>
                 <select className="h-10 w-full rounded-2xl border" value={jobDetails.category_name} onChange={(e) => setJobDetails((p) => ({...p, category_name: e.target.value }))}>
                   <option value="">Select a category</option>
-                  {categories.map((c) => <option key={c.job_category_id} value={c.category_name}>{c.category_name}</option>)}
+                  {categories.map((c: Record<string, unknown>) => <option key={String(c.job_category_id)} value={String(c.category_name)}>{String(c.category_name)}</option>)}
                 </select>
                 <Label>Experience</Label>
                 <Input value={jobDetails.experience_required} onChange={(e) => setJobDetails((p) => ({...p, experience_required: e.target.value}))} placeholder="e.g., 2+ years" />
@@ -591,8 +318,8 @@ function StartFlowModal({ open, mode, interviews, initialInterviewId, onClose }:
             )}
 
             <div className="flex justify-end gap-2">
-              <Button variant="secondary" onClick={onClose}>Cancel</Button>
-              <Button onClick={handleNext}>Next</Button>
+              <button className="p-4 rounded-lg border border-purple-500 py-2 text-xs sm:text-sm text-purple-600 " onClick={onClose}>Cancel</button>
+              <button className="p-4 rounded-lg bg-purple-500 py-2 text-xs sm:text-sm text-white " onClick={handleNext}>Next</button>
             </div>
           </div>
         ) : (
@@ -661,73 +388,25 @@ function StartFlowModal({ open, mode, interviews, initialInterviewId, onClose }:
 export default function InterviewsPage() {
   const { user } = useAuth()
   const userId = getUserId(user)
+  const router = useRouter()
 
   const [loading, setLoading] = React.useState(true)
-  const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
-  const [categories, setCategories] = React.useState<JobCategory[]>([])
   const [interviews, setInterviews] = React.useState<Interview[]>([])
-  // Results are fetched on demand when the user opens the Past Results modal
-  // (avoids noisy 404s when no results exist)
-  const [interviewResults, setInterviewResults] = React.useState<Map<number, InterviewResult[]>>(new Map()) // kept for backward compat but not prefilled
-
-  const [form, setForm] = React.useState<InterviewFormState>({
-    company_name: '',
-    scheduled_at: '',
-    position: '',
-    category_name: '',
-    experience_required: '',
-    status: 'scheduled',
-    job_description: '',
-  })
-
-  const [editing, setEditing] = React.useState<Interview | null>(null)
-  const [mockInterviewTarget, setMockInterviewTarget] = React.useState<Interview | null>(null)
-  const [viewingResults, setViewingResults] = React.useState<Interview | null>(null)
-
-  const [categoryModalOpen, setCategoryModalOpen] = React.useState(false)
-  const [newCategoryName, setNewCategoryName] = React.useState('')
-  const [newCategoryDescription, setNewCategoryDescription] = React.useState('')
 
   // Start flow (three-card quick start)
   const [startFlowOpen, setStartFlowOpen] = React.useState(false)
   const [startMode, setStartMode] = React.useState<'avatar' | 'ai_voice' | 'no_ai'>('avatar')
   const [startInitialInterviewId, setStartInitialInterviewId] = React.useState<number | null>(null)
 
-  // Smooth-scroll to the schedule form and focus the first input
-  const scrollToSchedule = (focus = true) => {
-    try {
-      const el = document.getElementById('schedule-section')
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        if (focus) {
-          const input = el.querySelector('input, textarea, select') as HTMLElement | null
-          if (input) input.focus()
-        }
-      }
-    } catch (e) {
-      // ignore in non-browser environments
-      console.warn('scrollToSchedule failed', e)
-    }
-  }
-
-  const router = useRouter()
-
   const load = React.useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [catsRes, interviewsRes] = await Promise.all([
-        api.get('/interviews/categories'),
-        api.get('/interviews', { params: userId ? { user_id: userId } : undefined }),
-      ])
-      setCategories((catsRes.data as JobCategory[]) || [])
+      const interviewsRes = await api.get('/interviews', { params: userId ? { user_id: userId } : undefined })
       const loadedInterviews = (interviewsRes.data as Interview[]) || []
       setInterviews(loadedInterviews)
-
-      // Do not prefetch interview results to avoid noisy 404s. Results are fetched
-      // when the user opens the Past Results modal (see PastResultsModal implementation).
     } catch (err) {
       setError(getApiErrorMessage(err) || 'Failed to load interviews')
     } finally {
@@ -739,469 +418,125 @@ export default function InterviewsPage() {
     load()
   }, [load])
 
-  const createInterview = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
-    setError(null)
-    try {
-      const payload = {
-        user_id: userId ?? undefined,
-        company_name: form.company_name,
-        scheduled_at: form.scheduled_at,
-        position: form.position,
-        category_name: form.category_name || undefined,
-        experience_required: form.experience_required || undefined,
-        status: form.status || undefined,
-        job_description: form.job_description || undefined,
-      }
-      await api.post('/interviews', payload)
-      setForm({
-        company_name: '',
-        scheduled_at: '',
-        position: '',
-        category_name: '',
-        experience_required: '',
-        status: 'scheduled',
-        job_description: '',
-      })
-      await load()
-    } catch (err: any) {
-      console.error('Create interview failed:', err)
-      const friendly = getApiErrorMessage(err)
-      if (friendly) setError(friendly)
-      else if (err?.response?.data) setError(typeof err.response.data === 'string' ? err.response.data : JSON.stringify(err.response.data))
-      else setError(err?.message || 'Failed to create interview')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const openEdit = (row: Interview) => {
-    setEditing(row)
-  }
-
-  const saveEdit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editing) return
-    setSaving(true)
-    setError(null)
-    try {
-      const payload = {
-        company_name: (editing.company_name || '').trim(),
-        scheduled_at: toDateTimeLocalValue(editing.scheduled_at),
-        position: (editing.position || '').trim(),
-        category_name: (editing.category_name || '').trim() || undefined,
-        experience_required: editing.experience_required || undefined,
-        status: editing.status || undefined,
-        job_description: editing.job_description || undefined,
-      }
-      await api.put(`/interviews/${editing.interview_id}`, payload)
-      setEditing(null)
-      await load()
-    } catch (err) {
-      setError(getApiErrorMessage(err) || 'Failed to update interview')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const deleteInterview = async (row: Interview) => {
-    const ok = await sweetConfirm(`Delete interview at ${row.company_name}?`)
-    if (!ok) return
-    setError(null)
-    try {
-      await api.delete(`/interviews/${row.interview_id}`)
-      await load()
-    } catch (err) {
-      setError(getApiErrorMessage(err) || 'Failed to delete interview')
-    }
-  }
-
-  const createCategory = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
-    setError(null)
-    try {
-      const res = await api.post('/interviews/categories', {
-        category_name: newCategoryName,
-        description: newCategoryDescription || undefined,
-      })
-      const created = res.data as JobCategory
-      setCategoryModalOpen(false)
-      setNewCategoryName('')
-      setNewCategoryDescription('')
-      await load()
-      if (created?.category_name) {
-        setForm((prev) => ({ ...prev, category_name: created.category_name }))
-      }
-    } catch (err) {
-      setError(getApiErrorMessage(err) || 'Failed to create category')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const upcoming = interviews.filter((i) => {
-    const d = new Date(i.scheduled_at)
-    return !Number.isNaN(d.getTime()) && d.getTime() >= Date.now()
-  })
-  const past = interviews.filter((i) => {
-    const d = new Date(i.scheduled_at)
-    return !Number.isNaN(d.getTime()) && d.getTime() < Date.now()
-  })
-
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-[var(--font-plus-jakarta)] text-2xl font-bold text-zinc-900">Interviews</h1>
-          <p className="mt-1 text-sm text-zinc-600">Schedule, edit, and track upcoming interviews.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={load} disabled={loading}>
-            Refresh
-          </Button>
-          <Button variant="outline" onClick={() => setCategoryModalOpen(true)}>
-            Add category
-          </Button>
-        </div>
+    <main className="min-h-screen md:px-16 py-10">
+      {/* Top Section */}
+      <div className="flex justify-center sm:justify-between pb-5">
+        <div></div>
+        <p className=" text-purple">Select Interview Module</p>
       </div>
 
-      {/* Quick start cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-        <div className="rounded-2xl border p-6 flex flex-col items-start gap-3 hover:shadow-md">
-          <div className="text-xl font-semibold text-[#4C0E87]">Interview with AI avatar</div>
-          <div className="text-sm text-zinc-600">Visual avatar leading the interview, AI feedback and scoring.</div>
-          <div className="mt-4 w-full flex gap-2">
-            <Button className="flex-1" onClick={() => { setStartMode('avatar'); setStartFlowOpen(true); }}>Start Interview</Button>
-            <Button variant="secondary" onClick={() => router.push('/interviews/schedule')}>Schedule</Button>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border p-6 flex flex-col items-start gap-3 hover:shadow-md">
-          <div className="text-xl font-semibold text-[#4C0E87]">Interview with AI voice</div>
-          <div className="text-sm text-zinc-600">No avatar, AI voice asks questions and provides analysis.</div>
-          <div className="mt-4 w-full flex gap-2">
-            <Button className="flex-1" onClick={() => { setStartMode('ai_voice'); setStartFlowOpen(true); }}>Start Interview</Button>
-            <Button variant="secondary" onClick={() => router.push('/interviews/schedule')}>Schedule</Button>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border p-6 flex flex-col items-start gap-3 hover:shadow-md">
-          <div className="text-xl font-semibold text-[#4C0E87]">Interview without AI</div>
-          <div className="text-sm text-zinc-600">Practice without AI prompts or voice — manual flow.</div>
-          <div className="mt-4 w-full flex gap-2">
-            <Button className="flex-1" onClick={() => { setStartMode('no_ai'); setStartFlowOpen(true); }}>Start Interview</Button>
-            <Button variant="secondary" onClick={() => router.push('/interviews/schedule')}>Schedule</Button>
-          </div>
-        </div>
+      <div className="flex flex-col md:flex-row justify-between gap-5 items-center">
+        <InterviewCard 
+          title="Individual Assistance" 
+          image="/interview1.svg"
+          onStartInterview={() => { setStartMode('avatar'); setStartFlowOpen(true); }}
+          onScheduleInterview={() => router.push('/interviews/schedule')}
+        />
+        <InterviewCard 
+          title="AI Based Assessment" 
+          image="/interview2.svg"
+          onStartInterview={() => { setStartMode('ai_voice'); setStartFlowOpen(true); }}
+          onScheduleInterview={() => router.push('/interviews/schedule')}
+        />
+        <InterviewCard 
+          title="AI Based Assessment" 
+          image="/interview1.svg"
+          onStartInterview={() => { setStartMode('no_ai'); setStartFlowOpen(true); }}
+          onScheduleInterview={() => router.push('/interviews/schedule')}
+        />
       </div>
 
-      {error ? (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="py-4 text-sm text-red-800">{error}</CardContent>
-        </Card>
-      ) : null}
+      <div className="flex flex-col lg:flex-row items-center justify-between gap-20 mb-16 w-full pt-20">
+        <div className="w-full md:w-[60%]">
+          <h1 className="text-3xl md:text-5xl font-bold leading-tight">
+            Ready for <br />
+            <span className="text-purple-600">Your Interview</span>
+          </h1>
 
-      <Card id="schedule-section" className="bg-white/60">
-        <CardHeader>
-          <CardTitle className="text-base">Schedule an interview</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={createInterview} className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="company_name">Company</Label>
-              <Input
-                id="company_name"
-                value={form.company_name}
-                onChange={(e) => setForm((p) => ({ ...p, company_name: e.target.value }))}
-                placeholder="Acme Inc."
-                required
-              />
+          <p className="mt-4 max-w-md text-gray-600">
+            Interview questions are thoughtfully crafted using your resume,
+            ensuring they are tailored to your individual experience.
+          </p>
+
+          <div className="flex justify-between items-center pt-10">
+            <div className="w-[40%] flex flex-col bg-white shadow-xl rounded-full px-5 pt-1 items-center justify-center">
+              <p className="text-[11px] md:text-xs font-medium  text-[#4C0E87]">Assessment by</p>
+              <p className="text-[#8D38DD]  text-xl md:text-3xl font-bold">Ai</p>
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="scheduled_at">Scheduled at</Label>
-              <Input
-                id="scheduled_at"
-                type="datetime-local"
-                value={form.scheduled_at}
-                onChange={(e) => setForm((p) => ({ ...p, scheduled_at: e.target.value }))}
-                required
-              />
+            <div className="w-[140px] rounded-2xl bg-[#8D38DD] flex flex-col py-4 px-2 items-center ">
+              <p className="text-[40px] font-extrabold leading-none text-white">
+                52+
+              </p>
+              <p className="text-[10px] font-medium text-white text-center">
+                Rational interview Questions
+              </p>
             </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="position">Position</Label>
-              <Input
-                id="position"
-                value={form.position}
-                onChange={(e) => setForm((p) => ({ ...p, position: e.target.value }))}
-                placeholder="Frontend Engineer"
-                required
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="category">Category</Label>
-              <select
-                id="category"
-                className="h-10 w-full rounded-2xl border border-zinc-200 bg-white/80 px-3 text-sm outline-none focus:border-brand-500"
-                value={form.category_name}
-                onChange={(e) => setForm((p) => ({ ...p, category_name: e.target.value }))}
-              >
-                <option value="">None</option>
-                {categories.map((c) => (
-                  <option key={c.job_category_id} value={c.category_name}>
-                    {c.category_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="experience_required">Experience</Label>
-              <Input
-                id="experience_required"
-                value={form.experience_required}
-                onChange={(e) => setForm((p) => ({ ...p, experience_required: e.target.value }))}
-                placeholder="2+ years"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="status">Status</Label>
-              <select
-                id="status"
-                className="h-10 w-full rounded-2xl border border-zinc-200 bg-white/80 px-3 text-sm outline-none focus:border-brand-500"
-                value={form.status}
-                onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
-              >
-                <option value="scheduled">scheduled</option>
-                <option value="completed">completed</option>
-                <option value="cancelled">cancelled</option>
-              </select>
-            </div>
-
-            <div className="md:col-span-2 grid gap-2">
-              <Label htmlFor="job_description">Job description (optional)</Label>
-              <textarea
-                id="job_description"
-                className="min-h-24 w-full rounded-2xl border border-zinc-200 bg-white/80 px-3 py-2 text-sm outline-none focus:border-brand-500"
-                value={form.job_description}
-                onChange={(e) => setForm((p) => ({ ...p, job_description: e.target.value }))}
-                placeholder="Paste the job description or key requirements"
-              />
-            </div>
-
-            <div className="md:col-span-2 flex items-center justify-end gap-2">
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Saving…' : 'Create interview'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="bg-white/60">
-          <CardHeader>
-            <CardTitle className="text-base">Upcoming</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-sm text-zinc-600">Loading…</div>
-            ) : upcoming.length === 0 ? (
-              <div className="text-sm text-zinc-600">No upcoming interviews.</div>
-            ) : (
-              <div className="space-y-3">
-                {upcoming.map((row) => (
-                  <InterviewRow
-                    key={row.interview_id}
-                    row={row}
-                    onEdit={() => openEdit(row)}
-                    onDelete={() => deleteInterview(row)}
-                    onStartMock={() => { setStartMode('avatar'); setStartInitialInterviewId(row.interview_id); setStartFlowOpen(true); }}
-                    onViewResults={() => setViewingResults(row)}
-                  />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white/60">
-          <CardHeader>
-            <CardTitle className="text-base">Past</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-sm text-zinc-600">Loading…</div>
-            ) : past.length === 0 ? (
-              <div className="text-sm text-zinc-600">No past interviews.</div>
-            ) : (
-              <div className="space-y-3">
-                {past.map((row) => (
-                  <InterviewRow
-                    key={row.interview_id}
-                    row={row}
-                    onEdit={() => openEdit(row)}
-                    onDelete={() => deleteInterview(row)}
-                    onStartMock={() => { setStartMode('avatar'); setStartInitialInterviewId(row.interview_id); setStartFlowOpen(true); }}
-                    onViewResults={() => setViewingResults(row)}
-                  />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Modal
-        open={Boolean(editing)}
-        title="Edit interview"
-        onClose={() => setEditing(null)}
-      >
-        {editing ? (
-          <form onSubmit={saveEdit} className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="edit_company_name">Company</Label>
-              <Input
-                id="edit_company_name"
-                value={editing.company_name || ''}
-                onChange={(e) => setEditing((p) => (p ? { ...p, company_name: e.target.value } : p))}
-                required
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit_scheduled_at">Scheduled at</Label>
-              <Input
-                id="edit_scheduled_at"
-                type="datetime-local"
-                value={toDateTimeLocalValue(editing.scheduled_at)}
-                onChange={(e) =>
-                  setEditing((p) =>
-                    p
-                      ? {
-                          ...p,
-                          // store raw input in a way backend parses
-                          scheduled_at: e.target.value,
-                        }
-                      : p
-                  )
-                }
-                required
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit_position">Position</Label>
-              <Input
-                id="edit_position"
-                value={editing.position || ''}
-                onChange={(e) => setEditing((p) => (p ? { ...p, position: e.target.value } : p))}
-                required
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit_category">Category</Label>
-              <select
-                id="edit_category"
-                className="h-10 w-full rounded-2xl border border-zinc-200 bg-white/80 px-3 text-sm outline-none focus:border-brand-500"
-                value={editing.category_name || ''}
-                onChange={(e) => setEditing((p) => (p ? { ...p, category_name: e.target.value } : p))}
-              >
-                <option value="">None</option>
-                {categories.map((c) => (
-                  <option key={c.job_category_id} value={c.category_name}>
-                    {c.category_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit_experience_required">Experience</Label>
-              <Input
-                id="edit_experience_required"
-                value={editing.experience_required || ''}
-                onChange={(e) => setEditing((p) => (p ? { ...p, experience_required: e.target.value } : p))}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit_status">Status</Label>
-              <select
-                id="edit_status"
-                className="h-10 w-full rounded-2xl border border-zinc-200 bg-white/80 px-3 text-sm outline-none focus:border-brand-500"
-                value={editing.status || 'scheduled'}
-                onChange={(e) => setEditing((p) => (p ? { ...p, status: e.target.value } : p))}
-              >
-                <option value="scheduled">scheduled</option>
-                <option value="completed">completed</option>
-                <option value="cancelled">cancelled</option>
-              </select>
-            </div>
-            <div className="md:col-span-2 grid gap-2">
-              <Label htmlFor="edit_job_description">Job description</Label>
-              <textarea
-                id="edit_job_description"
-                className="min-h-24 w-full rounded-2xl border border-zinc-200 bg-white/80 px-3 py-2 text-sm outline-none focus:border-brand-500"
-                value={editing.job_description || ''}
-                onChange={(e) => setEditing((p) => (p ? { ...p, job_description: e.target.value } : p))}
-              />
-            </div>
-            <div className="md:col-span-2 flex items-center justify-end gap-2">
-              <Button type="button" variant="secondary" onClick={() => setEditing(null)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Saving…' : 'Save changes'}
-              </Button>
-            </div>
-          </form>
-        ) : null}
-      </Modal>
-
-      <Modal
-        open={categoryModalOpen}
-        title="Add category"
-        onClose={() => setCategoryModalOpen(false)}
-      >
-        <form onSubmit={createCategory} className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="new_category_name">Category name</Label>
-            <Input
-              id="new_category_name"
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              placeholder="Frontend"
-              required
+          </div>
+          <div className="flex flex-col justify-center items-center">
+            <Image
+              src="/robot7.svg"
+              alt="robot"
+              width={50}
+              height={50}
+              className=" w-[240px] sm:w-[260px] lg:w-[50%] object-contain animate-bounce-pause flex items-center justify-center"
             />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="new_category_description">Description (optional)</Label>
-            <textarea
-              id="new_category_description"
-              className="min-h-24 w-full rounded-2xl border border-zinc-200 bg-white/80 px-3 py-2 text-sm outline-none focus:border-brand-500"
-              value={newCategoryDescription}
-              onChange={(e) => setNewCategoryDescription(e.target.value)}
-              placeholder="Roles focused on UI and web performance"
-            />
-          </div>
-          <div className="flex items-center justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={() => setCategoryModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Saving…' : 'Create category'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+        </div>
 
-      <PastResultsModal
-        open={Boolean(viewingResults)}
-        interview={viewingResults}
-        onClose={() => setViewingResults(null)}
-      />
+        <div className="flex  flex-col sm:flex-row gap-3 xl:gap-10 w-full items-center">
+          <div className="flex flex-col  lg:flex-row gap-5 rounded-2xl border border-purple-200 bg-white p-6 w-full sm:w-[60%]">
+            <div>
+              <p className="text-2xl font-medium mb-4">Interview - Matrix</p>
+              <div className="flex h-32 w-32 items-center justify-center rounded-full border-[10px] border-purple-500 font-semibold">
+                73%
+              </div>
+            </div>
+            <FaRegQuestionCircle size={25} color="#A3A3A3" />
+            <div className="flex gap-6">
+              <div className="text-sm text-gray-500 space-y-2">
+                <p className="text-lg flex flex-col">Total Assertion <strong className="text-black">1,234</strong></p>
+                <div className="flex flex-wrap justify-between py-5">
+                  <div className="flex flex-col items-start">
+                    <div className="flex gap-2 items-center">
+                      <p className="h-3 w-3 rounded-full bg-[#9F50E9]" />
+                      <p className="text-gray-500 text-md">Legend 1</p>
+                    </div>
+                    <p className="font-bold text-black">1,234</p>
+                  </div>
+                  <div className="flex flex-col items-start">
+                    <div className="flex gap-2 items-center">
+                      <p className="h-3 w-3 rounded-full bg-[#EB5757]" />
+                      <p className="text-gray-500 text-md">Legemd 2</p>
+                    </div>
+                    <p className="font-bold text-black">123</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-5">
+                  <p className="flex  flex-col">Recent Metric <strong className="text-black">123</strong></p>
+                  <p className="flex gap-1 text-[#9F50E9] text-lg font-bold"><span> <FiArrowUpRight size={25} /></span>0.05%</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="col-span-2 row-span-2 rounded-2xl border border-purple-200 bg-white p-6 space-y-2 w-full sm:w-[30%]">
+            <div className="flex flex-col">
+              <p className="text-gray-400 text-md">Total Interviews</p>
+              <p className="text-md font-bold mt-2">1,234</p>
+            </div>
+            <div className="flex flex-col">
+              <p className="text-gray-400 text-sm">Total Aced</p>
+              <p className="text-md font-bold mt-2">1,234</p>
+            </div>
+            <div className="flex flex-col">
+              <p className="text-gray-400 text-sm">Recent Metric</p>
+              <p className="text-md font-bold mt-2">1,234</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <StartFlowModal
         open={startFlowOpen}
@@ -1210,56 +545,66 @@ export default function InterviewsPage() {
         initialInterviewId={startInitialInterviewId}
         onClose={() => { setStartFlowOpen(false); setStartInitialInterviewId(null); }}
       />
-
-      <MockInterviewModal
-        open={Boolean(mockInterviewTarget)}
-        interview={mockInterviewTarget}
-        onClose={() => setMockInterviewTarget(null)}
-      />
-    </div>
-  )
+    </main>
+  );
 }
 
-function InterviewRow({
-  row,
-  onEdit,
-  onDelete,
-  onStartMock,
-  onViewResults,
-}: {
-  row: Interview
-  onEdit: () => void
-  onDelete: () => void
-  onStartMock: () => void
-  onViewResults: () => void
+function InterviewCard({ title, image, onStartInterview, onScheduleInterview }: { 
+  title: string; 
+  image: string;
+  onStartInterview: () => void;
+  onScheduleInterview: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="text-sm font-semibold text-zinc-900">{row.company_name}</div>
-          <div className="mt-1 text-sm text-zinc-700">
-            <span className="font-medium">{row.position_name || row.position}</span>
-            {row.category_name ? <span className="text-zinc-500"> · {row.category_name}</span> : null}
-          </div>
-          <div className="mt-1 text-xs text-zinc-600">{formatDisplayDate(row.scheduled_at)}</div>
-          {row.status ? <div className="mt-2 text-xs text-zinc-600">Status: {row.status}</div> : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={onViewResults} size="sm" variant="outline" className="border-emerald-600 text-emerald-700 hover:bg-emerald-50">
-            Past Interview Result
-          </Button>
-          <Button onClick={onStartMock} size="sm" className="bg-brand-600 hover:bg-brand-700 text-white">
-            Mock Interview
-          </Button>
-          <Button variant="secondary" onClick={onEdit}>
-            Edit
-          </Button>
-          <Button variant="destructive" onClick={onDelete}>
-            Delete
-          </Button>
-        </div>
+    <div
+      className={`relative w-full sm:w-[360px] rounded-2xl border p-6 border-purple-200
+        bg-gradient-to-b from-white to-purple-50`}
+    >
+      {/* Image Placeholder */}
+      <div className="mb-6 h-40 rounded-xl flex items-center justify-center">
+        <Image
+          src={image}
+          alt={title}
+          width={200}
+          height={200}
+          className="object-contain"
+        />
+      </div>
+
+      <h3 className="text-xl font-semibold text-purple-700 mb-4">
+        {title}
+      </h3>
+
+      <ul className="space-y-3 text-sm text-gray-700">
+        {[
+          "Basic Self Introduction assessment",
+          "Suggestions to improve",
+          "Schedule as per your request",
+          "CV based assessment",
+        ].map((item, i) => (
+          <li key={i} className="flex gap-2">
+            <span className="mt-1 flex h-4 w-4 items-center justify-center rounded-full bg-purple-600 text-white text-[10px]">
+              ✓
+            </span>
+            {item}
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-6 flex gap-3">
+        <button 
+          onClick={onScheduleInterview}
+          className="w-1/2 rounded-lg border border-purple-500 py-2 text-xs sm:text-sm text-purple-600 hover:bg-purple-50 transition-colors"
+        >
+          Schedule interview
+        </button>
+        <button 
+          onClick={onStartInterview}
+          className="w-1/2 rounded-lg bg-purple-600 py-2 text-xs sm:text-sm text-white hover:bg-purple-700 transition-colors"
+        >
+          Start Interview
+        </button>
       </div>
     </div>
-  )
+  );
 }

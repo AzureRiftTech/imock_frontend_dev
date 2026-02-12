@@ -4,6 +4,7 @@
  */
 
 import * as SpeechSDK from 'microsoft-cognitiveservices-speech-sdk'
+import { getErrorMessage } from '@/lib/error'
 
 export interface TranscriptionResult {
   text: string
@@ -88,10 +89,10 @@ export class SpeechRecognitionManager {
           }
         }
       )
-    } catch (error: any) {
-      console.error('[SpeechRecognition] Init error:', error)
+    } catch (error: unknown) {
+      console.error('[SpeechRecognition] Init error:', getErrorMessage(error))
       if (onError) {
-        onError(error.message || 'Failed to initialize speech recognition')
+        onError(getErrorMessage(error) || 'Failed to initialize speech recognition')
       }
       throw error
     }
@@ -138,4 +139,4 @@ export const speechRecognitionManager = typeof window !== 'undefined'
       startRecognition: async () => { throw new Error('Speech recognition not available on server') },
       stopRecognition: async () => {},
       isActive: () => false
-    } as any as SpeechRecognitionManager)
+    } as unknown as SpeechRecognitionManager)

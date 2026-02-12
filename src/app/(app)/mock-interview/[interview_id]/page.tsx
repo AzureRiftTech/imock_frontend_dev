@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
-import { getApiErrorMessage } from '@/lib/error'
+import { getApiErrorMessage, getErrorMessage } from '@/lib/error'
 import { azureAvatarManager, type AvatarConfig } from '@/lib/azureAvatar'
 import { speechRecognitionManager } from '@/lib/speechRecognition'
 import { Button } from '@/components/ui/button'
@@ -94,7 +94,7 @@ export default function MockInterviewPage() {
   const evaluationsRef = React.useRef<AnswerEvaluation[]>([])
   const [isEvaluating, setIsEvaluating] = React.useState(false)
   const [interviewFinished, setInterviewFinished] = React.useState(false)
-  const [overallStats, setOverallStats] = React.useState<any>(null)
+  const [overallStats, setOverallStats] = React.useState<Record<string, unknown> | null>(null)
   const evaluationInFlightRef = React.useRef(false)
   const lastEvaluationKeyRef = React.useRef<string | null>(null)
 
@@ -121,9 +121,39 @@ export default function MockInterviewPage() {
       userStream.getTracks().forEach(track => track.stop())
       setUserStream(null)
     }
+    // detach video element src to release hardware when possible
+    try {
+      if (userVideoRef.current) {
+        userVideoRef.current.srcObject = null
+      }
+    } catch (e) {
+      console.warn('[MockInterview] Failed to clear video srcObject', e)
+    }
   }
 
   // 1. Generate Questions on Load
+
+  // End session helper — stops avatar, recognition and camera then navigates back
+  const handleEndSession = async () => {
+    try {
+      if (azureAvatarManager?.isAvatarConnected && azureAvatarManager.isAvatarConnected()) {
+        await azureAvatarManager.stopAvatar()
+      }
+    } catch (e) {
+      console.warn('[MockInterview] Failed to stop avatar', e)
+    }
+
+    try {
+      if (speechRecognitionManager?.isActive && speechRecognitionManager.isActive()) {
+        speechRecognitionManager.stopRecognition()
+      }
+    } catch (e) {
+      console.warn('[MockInterview] Failed to stop recognition', e)
+    }
+
+    stopCamera()
+    router.back()
+  }
   const generateQuestions = React.useCallback(async () => {
     if (!interviewId || resumeIndex === null) {
       setError('Missing interview ID or resume index')
@@ -178,6 +208,19 @@ export default function MockInterviewPage() {
     }
   }, [])
 
+  // Ensure the user video element receives the MediaStream after it mounts or when the stream changes
+  React.useEffect(() => {
+    if (userStream && userVideoRef.current) {
+      try {
+        userVideoRef.current.srcObject = userStream
+        // Some browsers require an explicit play() on programmatic attach
+        userVideoRef.current.play().catch(() => {})
+      } catch (e) {
+        console.warn('[MockInterview] Failed to attach user stream to video element', e)
+      }
+    }
+  }, [userStream])
+
   // Initialize Avatar Connection
   const initializeAvatar = async () => {
     if (!videoContainerRef.current || avatarInitializedRef.current) return
@@ -201,9 +244,9 @@ export default function MockInterviewPage() {
       avatarInitializedRef.current = true
       setAvatarLoading(false)
       console.log('[MockInterview] Avatar initialized')
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[MockInterview] Avatar init failed:', error)
-      setAvatarError(error.message || 'Failed to initialize avatar')
+      setAvatarError(getErrorMessage(error) || 'Failed to initialize avatar')
       setAvatarLoading(false)
     }
   }
@@ -222,9 +265,9 @@ export default function MockInterviewPage() {
       await azureAvatarManager.speak(questionText)
       console.log('[MockInterview] Question spoken successfully')
       setIsSpeaking(false)
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[MockInterview] Speak failed:', error)
-      setAvatarError(error.message || 'Failed to speak question')
+      setAvatarError(getErrorMessage(error) || 'Failed to speak question')
       setIsSpeaking(false)
     }
   }
@@ -270,7 +313,7 @@ export default function MockInterviewPage() {
       const finalEvaluations = evaluationsRef.current && evaluationsRef.current.length ? evaluationsRef.current : evaluations
       console.log('[MockInterview] Saving final evaluations count:', finalEvaluations.length)
       // Prepare holders for saved result so they are accessible after the block
-      let savedResult: any = null
+      let savedResult: Record<string, unknown> | null = null
       let savedId: number | null = null
 
       if (finalEvaluations.length > 0) {
@@ -297,7 +340,12 @@ export default function MockInterviewPage() {
           })
           // backend returns { success: true, data: { id, badge, merit_pts } }
           savedResult = res.data?.data || res.data || null
-          savedId = savedResult?.id ?? null
+          savedId = (() => {
+            const id = savedResult?.id
+            if (typeof id === 'number') return id
+            if (typeof id === 'string' && id.trim() !== '') return Number(id)
+            return null
+          })()
           console.log('[MockInterview] Results saved successfully', savedResult)
         } catch (err) {
           console.error('[MockInterview] Failed to save results:', err)
@@ -313,12 +361,12 @@ export default function MockInterviewPage() {
       if (!resultId && sessionToken) {
         try {
           const lookup = await api.get(`/answer-analysis/results/${params.interview_id}`, { params: { session_token: sessionToken } })
-          if (lookup.data && lookup.data.success && lookup.data.data && lookup.data.data.id) {
-            resultId = lookup.data.data.id
-            console.log('[MockInterview] Found saved result by session_token:', resultId)
-          }
-        } catch (err) {
-          console.warn('[MockInterview] Could not lookup result by session_token:', err)
+          const data = lookup.data?.data
+          const idCandidate = data?.id
+          resultId = typeof idCandidate === 'number' ? idCandidate : (typeof idCandidate === 'string' && idCandidate ? Number(idCandidate) : null)
+          if (resultId) console.log('[MockInterview] Found saved result by session_token:', resultId)
+        } catch (err: unknown) {
+          console.warn('[MockInterview] Could not lookup result by session_token:', getErrorMessage(err))
         }
       }
 
@@ -368,9 +416,9 @@ export default function MockInterviewPage() {
       )
 
       console.log('[MockInterview] Recording started')
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[MockInterview] Recording failed:', error)
-      setRecordingError(error.message || 'Failed to start recording')
+      setRecordingError(getErrorMessage(error) || 'Failed to start recording')
       setIsRecording(false)
     }
   }
@@ -451,8 +499,8 @@ export default function MockInterviewPage() {
         console.log('[MockInterview] Calling handleNext to move to next question...')
         await handleNext(true) // Force next, don't check isRecording
       }
-    } catch (error: any) {
-      console.error('[MockInterview] Evaluation failed:', error)
+    } catch (error: unknown) {
+      console.error('[MockInterview] Evaluation failed:', getErrorMessage(error))
       // Fallback: move to next even if evaluation failed
       await handleNext(true) // Force next
     } finally {
@@ -570,7 +618,7 @@ export default function MockInterviewPage() {
 
   // 5. Active Interview Screen
   return (
-    <div className="fixed inset-0 bg-zinc-950 overflow-hidden flex flex-col font-[var(--font-plus-jakarta)]">
+    <div className="fixed inset-0 z-50 bg-zinc-950 overflow-hidden flex flex-col font-[var(--font-plus-jakarta)]">
       {/* Top Bar Overlay */}
       <div className="absolute top-0 left-0 right-0 z-10 p-6 flex items-center justify-between pointer-events-none">
         <div className="flex flex-col gap-1 pointer-events-auto bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/10">
@@ -587,7 +635,7 @@ export default function MockInterviewPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.back()}
+            onClick={handleEndSession}
             className="text-white/80 hover:text-white hover:bg-white/10"
           >
             Exit Session
@@ -749,7 +797,7 @@ export default function MockInterviewPage() {
       </div>
 
       {/* Question Overlay (Centered at the Bottom of screen) */}
-      <div className="fixed bottom-36 left-1/2 -translate-x-1/2 w-full max-w-5xl px-8 z-30">
+      <div className="fixed bottom-44 left-1/2 -translate-x-1/2 w-full max-w-5xl px-8 z-30"> 
         <div className="bg-black/60 backdrop-blur-3xl p-8 rounded-[3rem] border border-white/10 shadow-2xl transition-all duration-700 hover:bg-black/80 ring-1 ring-white/5">
           <div className="space-y-2 text-center">
             <div className="flex items-center justify-center gap-3 mb-1">
@@ -766,12 +814,12 @@ export default function MockInterviewPage() {
       </div>
 
       {/* Bottom Control Bar */}
-      <div className="z-50 p-12 flex items-center justify-center bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-transparent">
+      <div className="z-50 relative p-12 flex items-center justify-center bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-transparent">
         <div className="bg-zinc-900/90 backdrop-blur-3xl px-10 py-6 rounded-full border border-white/10 shadow-[0_30px_60px_rgba(0,0,0,0.6)] flex items-center gap-10 ring-1 ring-white/10">
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => router.back()}
+            onClick={handleEndSession}
             className="w-16 h-16 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 transition-all hover:scale-110 active:scale-95 group"
             title="End Session"
           >

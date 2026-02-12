@@ -46,6 +46,19 @@ body {
   animation: bounce-pause 4s ease-in-out infinite;
 }
 
+/* Audio wave animation for interview pages */
+@keyframes wave {
+
+  0%,
+  100% {
+    height: 20%;
+  }
+
+  50% {
+    height: 100%;
+  }
+}
+
 @layer utilities {
   .mask-arc-top {
     -webkit-mask: radial-gradient(farthest-side at top,
@@ -55,4 +68,38 @@ body {
         transparent 65%,
         black 66%);
   }
+}
+
+@keyframes zoomSpin {
+  0% {
+    transform: scale(0) rotate(0deg);
+  }
+
+  60% {
+    transform: scale(1) rotate(0deg);
+  }
+
+  100% {
+    transform: scale(1) rotate(360deg);
+  }
+}
+
+.zoom-spin {
+  animation: zoomSpin 4s ease-in-out infinite;
+}
+
+@keyframes zoomIn {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.robot-zoom {
+  animation: zoomIn 1.2s ease-out forwards;
 }

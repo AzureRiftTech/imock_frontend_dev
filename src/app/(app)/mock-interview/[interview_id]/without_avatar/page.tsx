@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
-import { getApiErrorMessage } from '@/lib/error'
+import { getApiErrorMessage, getErrorMessage } from '@/lib/error'
 import { browserSpeechRecognitionManager } from '@/lib/browserSpeechRecognition'
 import Logo from '@/assets/react.svg'
 import { Button } from '@/components/ui/button'
@@ -90,7 +90,7 @@ export default function MockInterviewNoAvatarPage() {
   const evaluationsRef = React.useRef<AnswerEvaluation[]>([])
   const [isEvaluating, setIsEvaluating] = React.useState(false)
   const [interviewFinished, setInterviewFinished] = React.useState(false)
-  const [overallStats, setOverallStats] = React.useState<any>(null)
+  const [overallStats, setOverallStats] = React.useState<Record<string, unknown> | null>(null)
   const evaluationInFlightRef = React.useRef(false)
   const lastEvaluationKeyRef = React.useRef<string | null>(null)
 
@@ -117,6 +117,20 @@ export default function MockInterviewNoAvatarPage() {
       userStream.getTracks().forEach(track => track.stop())
       setUserStream(null)
     }
+  }
+
+  // End session helper — stops recognition and camera then navigates back
+  const handleEndSession = async () => {
+    try {
+      if (browserSpeechRecognitionManager?.isActive && browserSpeechRecognitionManager.isActive()) {
+        browserSpeechRecognitionManager.stopRecognition()
+      }
+    } catch (e) {
+      console.warn('[MockInterview] Failed to stop recognition', e)
+    }
+
+    stopCamera()
+    router.back()
   }
 
   // 1. Generate Questions on Load
@@ -174,6 +188,18 @@ export default function MockInterviewNoAvatarPage() {
       stopCamera()
     }
   }, [])
+
+  // Ensure the user video element receives the MediaStream after it mounts or when the stream changes
+  React.useEffect(() => {
+    if (userStream && userVideoRef.current) {
+      try {
+        userVideoRef.current.srcObject = userStream
+        userVideoRef.current.play().catch(() => {})
+      } catch (e) {
+        console.warn('[MockInterview] Failed to attach user stream to video element', e)
+      }
+    }
+  }, [userStream])
 
   // Use browser TTS to speak text
   const speakText = async (text: string) => {
@@ -263,7 +289,7 @@ export default function MockInterviewNoAvatarPage() {
       const finalEvaluations = evaluationsRef.current && evaluationsRef.current.length ? evaluationsRef.current : evaluations
       console.log('[MockInterview] Saving final evaluations count:', finalEvaluations.length)
       // Prepare holders for saved result so they are accessible after the if-block
-      let savedResult: any = null
+      let savedResult: Record<string, unknown> | null = null
       let savedId: number | null = null
 
       if (finalEvaluations.length > 0) {
@@ -290,11 +316,11 @@ export default function MockInterviewNoAvatarPage() {
           })
           // backend returns { success: true, data: { id, badge, merit_pts } }
           savedResult = res.data?.data || res.data || null
-          savedId = savedResult?.id ?? null
+          const idCandidate = savedResult?.id
+          savedId = typeof idCandidate === 'number' ? idCandidate : (typeof idCandidate === 'string' && idCandidate ? Number(idCandidate) : null)
           console.log('[MockInterview] Results saved successfully', savedResult)
         } catch (err) {
-          console.error('[MockInterview] Failed to save results:', err)
-          // Still redirect even if save fails, but maybe log it
+        console.error('[MockInterview] Failed to save results:', getErrorMessage(err))
         }
       }
 
@@ -307,10 +333,9 @@ export default function MockInterviewNoAvatarPage() {
         try {
           // This endpoint supports an optional session_token query param to find the matching result
           const lookup = await api.get(`/answer-analysis/results/${params.interview_id}`, { params: { session_token: sessionToken } })
-          if (lookup.data && lookup.data.success && lookup.data.data && lookup.data.data.id) {
-            resultId = lookup.data.data.id
-            console.log('[MockInterview] Found saved result by session_token:', resultId)
-          }
+          const idCandidate = lookup.data?.data?.id
+          resultId = typeof idCandidate === 'number' ? idCandidate : (typeof idCandidate === 'string' && idCandidate ? Number(idCandidate) : null)
+          if (resultId) console.log('[MockInterview] Found saved result by session_token:', resultId)
         } catch (err) {
           console.warn('[MockInterview] Could not lookup result by session_token:', err)
         }
@@ -358,33 +383,35 @@ export default function MockInterviewNoAvatarPage() {
           let errorMessage = 'Speech recognition error'
           if (typeof error === 'string') {
             errorMessage = error
-          } else if (error?.message) {
-            errorMessage = error.message
-          }
-          
-          // Check for specific error types if it's a SpeechRecognitionErrorEvent
-          if (error?.error) {
-            switch (error.error) {
-              case 'no-speech':
-                errorMessage = 'No speech detected. Please try speaking louder or check your microphone.'
-                break
-              case 'audio-capture':
-                errorMessage = 'Microphone not accessible. Please check your microphone permissions.'
-                break
-              case 'not-allowed':
-                errorMessage = 'Microphone permission denied. Please allow microphone access in your browser settings.'
-                break
-              case 'network':
-                errorMessage = 'Network error. Speech recognition requires an internet connection.'
-                break
-              case 'aborted':
-                errorMessage = 'Speech recognition was stopped.'
-                break
-              case 'service-not-allowed':
-                errorMessage = 'Speech recognition service not allowed. Please check browser permissions.'
-                break
-              default:
-                errorMessage = `Speech recognition error: ${error.error}`
+          } else {
+            const errObj = error as Record<string, unknown>
+            if (typeof errObj.message === 'string') {
+              errorMessage = errObj.message
+            }
+            // Check for specific error types if it's a SpeechRecognitionErrorEvent
+            if (typeof errObj.error === 'string') {
+              switch (errObj.error) {
+                case 'no-speech':
+                  errorMessage = 'No speech detected. Please try speaking louder or check your microphone.'
+                  break
+                case 'audio-capture':
+                  errorMessage = 'Microphone not accessible. Please check your microphone permissions.'
+                  break
+                case 'not-allowed':
+                  errorMessage = 'Microphone permission denied. Please allow microphone access in your browser settings.'
+                  break
+                case 'network':
+                  errorMessage = 'Network error. Speech recognition requires an internet connection.'
+                  break
+                case 'aborted':
+                  errorMessage = 'Speech recognition was stopped.'
+                  break
+                case 'service-not-allowed':
+                  errorMessage = 'Speech recognition service not allowed. Please check browser permissions.'
+                  break
+                default:
+                  errorMessage = `Speech recognition error: ${String(errObj.error)}`
+              }
             }
           }
           
@@ -394,9 +421,9 @@ export default function MockInterviewNoAvatarPage() {
       )
 
       console.log('[MockInterview] Recording started (browser)')
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[MockInterview] Recording failed:', error)
-      setRecordingError(error.message || 'Failed to start recording. Please check microphone permissions.')
+      setRecordingError(getErrorMessage(error) || 'Failed to start recording. Please check microphone permissions.')
       setIsRecording(false)
     }
   }
@@ -473,13 +500,12 @@ export default function MockInterviewNoAvatarPage() {
         console.log('[MockInterview] Calling handleNext to move to next question...')
         await handleNext(true) // Force next, don't check isRecording
       }
-    } catch (error: any) {
-      console.error('[MockInterview] Evaluation failed:', error)
+    } catch (error: unknown) {
+      console.error('[MockInterview] Evaluation failed:', getErrorMessage(error))
       // Fallback: move to next even if evaluation failed
       await handleNext(true) // Force next
     } finally {
       setIsEvaluating(false)
-      setIsSpeaking(false) // Safeguard to ensure mic is re-enabled
       evaluationInFlightRef.current = false
     }
   }
@@ -592,7 +618,7 @@ export default function MockInterviewNoAvatarPage() {
 
   // 5. Active Interview Screen (No Avatar)
   return (
-    <div className="fixed inset-0 bg-zinc-950 overflow-hidden flex flex-col font-[var(--font-plus-jakarta)]">
+    <div className="fixed inset-0 z-50 bg-zinc-950 overflow-hidden flex flex-col font-[var(--font-plus-jakarta)]">
       {/* Top Bar Overlay */}
       <div className="absolute top-0 left-0 right-0 z-10 p-6 flex items-center justify-between pointer-events-none">
         <div className="flex flex-col gap-1 pointer-events-auto bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/10">
@@ -628,11 +654,26 @@ export default function MockInterviewNoAvatarPage() {
       {/* Main Interview Area: Side-by-Side Videos */}
       <div className="flex-1 flex flex-col md:flex-row items-stretch justify-center p-8 gap-8 w-full max-w-[1700px] mx-auto overflow-hidden">
 
-        {/* Logo Side (replaces Avatar) */}
-        <div className="flex-1 min-h-[500px] h-[60vh] bg-zinc-900 rounded-[3rem] overflow-hidden shadow-2xl relative border border-white/5 ring-1 ring-white/10 group flex items-center justify-center">
-          <div className="flex items-center justify-center p-8">
-            <img src={Logo as unknown as string} alt="IMock Logo" className="w-40 h-40 object-contain opacity-80" />
+        {/* AI Interviewer Side (30% width) */}
+        <div className="w-full md:w-[30%] min-h-[400px] h-[60vh] bg-zinc-900 rounded-[3rem] overflow-hidden shadow-2xl relative border border-white/5 ring-1 ring-white/10 group flex flex-col items-center justify-center gap-6">
+          {/* Robot SVG */}
+          <div className="flex items-center justify-center">
+            <img src="/robot2.svg" alt="AI Robot" className="w-24 h-24 object-contain opacity-90" />
           </div>
+          
+          {/* Audio Wave Animation */}
+          {isSpeaking && (
+            <div className="flex gap-1.5 h-12 items-end">
+              <div className="w-1.5 bg-brand-500 rounded-full animate-[wave_0.8s_ease-in-out_infinite]" style={{ height: '20%', animationDelay: '0s' }} />
+              <div className="w-1.5 bg-brand-500 rounded-full animate-[wave_0.8s_ease-in-out_infinite]" style={{ height: '40%', animationDelay: '0.1s' }} />
+              <div className="w-1.5 bg-brand-500 rounded-full animate-[wave_0.8s_ease-in-out_infinite]" style={{ height: '80%', animationDelay: '0.2s' }} />
+              <div className="w-1.5 bg-brand-500 rounded-full animate-[wave_0.8s_ease-in-out_infinite]" style={{ height: '60%', animationDelay: '0.3s' }} />
+              <div className="w-1.5 bg-brand-500 rounded-full animate-[wave_0.8s_ease-in-out_infinite]" style={{ height: '100%', animationDelay: '0.4s' }} />
+              <div className="w-1.5 bg-brand-500 rounded-full animate-[wave_0.8s_ease-in-out_infinite]" style={{ height: '50%', animationDelay: '0.5s' }} />
+              <div className="w-1.5 bg-brand-500 rounded-full animate-[wave_0.8s_ease-in-out_infinite]" style={{ height: '70%', animationDelay: '0.6s' }} />
+              <div className="w-1.5 bg-brand-500 rounded-full animate-[wave_0.8s_ease-in-out_infinite]" style={{ height: '30%', animationDelay: '0.7s' }} />
+            </div>
+          )}
 
           {/* Label */}
           <div className="absolute top-6 left-6 flex items-center gap-2 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 z-20">
@@ -651,8 +692,8 @@ export default function MockInterviewNoAvatarPage() {
           )}
         </div>
 
-        {/* User Camera Side */}
-        <div className="flex-1 min-h-[500px] h-[60vh] bg-zinc-900 rounded-[3rem] overflow-hidden shadow-2xl relative border border-white/5 ring-1 ring-white/10 group">
+        {/* User Camera Side (70% width) */}
+        <div className="w-full md:w-[70%] min-h-[500px] h-[60vh] bg-zinc-900 rounded-[3rem] overflow-hidden shadow-2xl relative border border-white/5 ring-1 ring-white/10 group">
           {userStream ? (
             <video
               ref={userVideoRef}
@@ -764,7 +805,7 @@ export default function MockInterviewNoAvatarPage() {
       </div>
 
       {/* Question Overlay (Centered at the Bottom of screen) */}
-      <div className="fixed bottom-36 left-1/2 -translate-x-1/2 w-full max-w-5xl px-8 z-30">
+      <div className="fixed bottom-44 left-1/2 -translate-x-1/2 w-full max-w-5xl px-8 z-30">
         <div className="bg-black/60 backdrop-blur-3xl p-8 rounded-[3rem] border border-white/10 shadow-2xl transition-all duration-700 hover:bg-black/80 ring-1 ring-white/5">
           <div className="space-y-2 text-center">
             <div className="flex items-center justify-center gap-3 mb-1">
@@ -781,12 +822,12 @@ export default function MockInterviewNoAvatarPage() {
       </div>
 
       {/* Bottom Control Bar */}
-      <div className="z-50 p-12 flex items-center justify-center bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-transparent">
+      <div className="z-50 relative p-12 flex items-center justify-center bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-transparent">
         <div className="bg-zinc-900/90 backdrop-blur-3xl px-10 py-6 rounded-full border border-white/10 shadow-[0_30px_60px_rgba(0,0,0,0.6)] flex items-center gap-10 ring-1 ring-white/10">
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => router.back()}
+            onClick={handleEndSession}
             className="w-16 h-16 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 transition-all hover:scale-110 active:scale-95 group"
             title="End Session"
           >

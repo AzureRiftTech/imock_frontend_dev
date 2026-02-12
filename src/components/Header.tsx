@@ -104,7 +104,7 @@ export default function Header() {
 
                     {/* Mobile Menu Button */}
                     <button
-                        className="md:hidden text-2xl text-purple-700"
+                        className="md:hidden relative text-2xl text-purple-700"
                         onClick={() => setOpen(!open)}
                     >
                         ☰
@@ -137,7 +137,7 @@ export default function Header() {
                             <button className="flex-1 rounded-full border border-purple-500 py-2 text-purple-700">
                                 Login
                             </button>
-                            <button className="flex-1 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 py-2 text-white">
+                            <button className="flex-1 rounded-full bg-[#9F50E9] py-2 text-white">
                                 Sign up
                             </button>
                         </div>
