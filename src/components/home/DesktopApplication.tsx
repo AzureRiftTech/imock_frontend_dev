@@ -2,186 +2,176 @@
 import Image from "next/image";
 import React, { useState } from "react";
 import { RxDoubleArrowDown } from "react-icons/rx";
-import { HiArrowRight } from "react-icons/hi";
 import { GoArrowRight } from "react-icons/go";
+
+const slides = [
+    {
+        src: "/Assets/Large Main Screen (Primary Visual).webp",
+        alt: "IMock AI desktop application showing confidence score dashboard with response structure suggestions and tone analysis",
+        label: "Confidence Dashboard",
+        tag: "AI Scoring",
+    },
+    {
+        src: "/Assets/slide 2.webp",
+        alt: "IMock AURA feature showing discreet interview prompts and structured answer hints overlay on desktop",
+        label: "AURA Assist",
+        tag: "Stealth Mode",
+    },
+    {
+        src: "/Assets/slide 3.webp",
+        alt: "IMock AI Interview Assistant displayed on a monitor during a live virtual interview session with real-time analytics",
+        label: "Live Interview",
+        tag: "Real-Time AI",
+    },
+];
 
 const DesktopApplication = () => {
     const [active, setActive] = useState(0);
 
     return (
-        <section className="relative min-h-screen bg-white px-10 py-20 mt-10 -z-20">
-            <div className="flex flex-col lg:flex-row w-full items-center lg:justify-between">
+        <section className="relative bg-white px-6 md:px-10 py-20 mt-10 overflow-hidden">
 
+            {/* ── ambient glow ── */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[70%] h-[60%] bg-purple-200/40 blur-[100px] -z-10 pointer-events-none" />
 
-                {/* ================= LEFT SIDEBAR ================= */}
-                <div className="w-[120px] h-[20vh] lg:h-[60vh] flex flex-col items-center justify-center lg:justify-between gap-10 lg:gap-0">
-                    <div className="flex flex-row  lg:flex-col items-center gap-5">
-                        <div className="flex items-center gap-4 text-xl font-bold">
-                            01 <span className="w-10 border-t border-black" />
-                        </div>
-
-                        {["/vector2.svg", "/vector1.svg", "/vector.svg"].map((icon, index) => (
-                            <div
-                                key={index}
-                                className="w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center cursor-pointer hover:scale-110 transition"
-                            >
-                                <Image src={icon} alt="" width={18} height={18} />
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="flex flex-row lg:flex-col gap-10 sm:gap-20">
-                        {["MY PROFILE", "MY COURSES", "BROWSE"].map((text) => (
-                            <span
-                                key={text}
-                                className="lg:-rotate-90 whitespace-nowrap text-xs font-bold text-gray-700"
-                            >
-                                {text}
-                            </span>
-                        ))}
-                    </div>
+            {/* ── section header ── */}
+            <div className="max-w-7xl mx-auto mb-12 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+                <div>
+                    <p className="text-xs font-semibold tracking-widest text-purple-400 uppercase mb-2">Platform Preview</p>
+                    <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
+                        <span className="text-purple-600">Desktop</span>{" "}
+                        <span className="text-gray-900">Application</span>
+                    </h2>
+                    <p className="text-gray-500 text-sm md:text-base mt-2">AI Interview Assistant — runs silently, supports confidently.</p>
                 </div>
+                <div className="flex items-center gap-2 text-xs text-gray-400 font-medium">
+                    <span className="w-8 border-t border-gray-300" />
+                    0{active + 1} / 0{slides.length}
+                    <span className="w-8 border-t border-gray-300" />
+                </div>
+            </div>
 
-                {/* ================= CENTER CONTENT ================= */}
-                <div className="flex-1 relative flex items-center justify-center">
+            <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8 items-stretch">
 
-                    {/* ===== Main Shape Wrapper ===== */}
-                    <div className="relative w-full">
+                {/* ══════════════ SLIDER STACK ══════════════ */}
+                <div className="flex-1 relative" style={{ minHeight: "520px" }}>
+
+                    {/* ── geometric accent lines (top-left corner) ── */}
+                    <div className="absolute -top-3 -left-3 w-12 h-12 border-t-2 border-l-2 border-purple-400 rounded-tl-xl z-20 pointer-events-none" />
+                    <div className="absolute -bottom-3 -right-3 w-12 h-12 border-b-2 border-r-2 border-purple-300 rounded-br-xl z-20 pointer-events-none" />
+
+                    {/* ── diagonal accent stripe (background) ── */}
+                    <div
+                        className="absolute inset-0 z-0 pointer-events-none overflow-hidden rounded-3xl"
+                        aria-hidden="true"
+                    >
+                        <div className="absolute -top-10 -right-10 w-40 h-[120%] bg-purple-500/10 rotate-12 rounded-full blur-sm" />
+                        <div className="absolute -bottom-10 -left-10 w-24 h-[80%] bg-purple-400/10 rotate-12 rounded-full blur-sm" />
+                    </div>
+
+                    {/* ── slide images ── */}
+                    {slides.map((slide, i) => (
                         <div
-                            className="
-                            absolute -left-60 top-16
-                            w-[100%] h-[60%]
-                            bg-gradient-to-r from-[#E9C6FF] via-[#F3DCFF] to-transparent
-                            blur-[50px] opacity-90
-                            -z-20
-                             "
-                        />
+                            key={i}
+                            aria-hidden={active !== i}
+                            className={`absolute inset-0 transition-all duration-700 ease-in-out ${
+                                active === i
+                                    ? "opacity-100 translate-x-0 scale-100 z-10"
+                                    : i < active
+                                    ? "opacity-0 -translate-x-8 scale-95 z-0"
+                                    : "opacity-0 translate-x-8 scale-95 z-0"
+                            }`}
+                            style={{
+                                clipPath: "polygon(0 0, 96% 0, 100% 4%, 100% 100%, 4% 100%, 0 96%)",
+                            }}
+                        >
+                            <Image
+                                src={slide.src}
+                                alt={slide.alt}
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 1024px) 95vw, 60vw"
+                                priority={i === 0}
+                            />
+                            {/* bottom scrim */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
-                        {/* 🌸 BOTTOM PINK GLOW */}
-                        <div className="absolute -bottom-20 left-0 w-full h-20 -z-20 opacity-90">
-                            <div className="absolute inset-0 bg-gradient-to-t from-[#E9C6FF] via-[#f7f0ff] to-transparent" />
+                            {/* ── slide info overlay ── */}
+                            <div className="absolute bottom-8 left-8 right-8 z-10">
+                                <span className="inline-block mb-2 px-3 py-1 rounded-full bg-purple-500/80 backdrop-blur-sm text-white text-[10px] font-bold tracking-widest uppercase">
+                                    {slide.tag}
+                                </span>
+                                <h3 className="text-white text-2xl md:text-3xl font-bold drop-shadow-md">
+                                    {slide.label}
+                                </h3>
+                            </div>
 
-                            <div className="absolute inset-0 bg-gradient-to-r from-white via-transparent to-white" />
+                            {/* ── geometric corner cut indicator (active) ── */}
+                            <div className="absolute top-0 right-0 w-0 h-0 border-t-[40px] border-t-purple-500 border-l-[40px] border-l-transparent opacity-80" />
                         </div>
+                    ))}
 
-                        {/* Main Shape */}
-                        <Image
-                            src="/Subtract.svg"
-                            alt="Main background"
-                            width={100}
-                            height={100}
-                            className="object-contain w-full h-auto"
-                            priority
-                        />
-
-                        {/* Bottom-left small shape */}
-                        <Image
-                            src="/Subtract-1.svg"
-                            alt=""
-                            width={100}
-                            height={100}
-                            className="absolute bottom-8 sm:bottom-10 left-3 w-[16%] sm:w-[17%] md:w-[19%] lg:w-[20%] h-auto"
-                        />
-
-                        {/* Top-right small shape */}
-                        <Image
-                            src="/Subtract-2.svg"
-                            alt=""
-                            width={100}
-                            height={100}
-                            className="absolute top-[18%] -right-5 w-[30%] h-auto rotate-2"
-                        />
-
-                        {/* 🔥 NEW: DEMO + ARROW */}
-                        <div className="absolute bottom-[35%] sm:bottom-[38%] md:bottom-[36%] xl:bottom-[35%] left-[9%] flex items-center gap-3">
-                            <span className="px-1 sm:px-4 lg:px-6 xl:px-8 md:py-1 border border-gray-400 rounded-full text-[10px] md:text-xs lg:text-sm bg-white">
-                                Demo
+                    {/* ── feature tags row (below slides, always visible) ── */}
+                    <div className="absolute -bottom-14 left-0 right-0 flex flex-wrap gap-2 z-20">
+                        {["Minimal UI", "Stealth Mode", "Low Resource Usage"].map((tag) => (
+                            <span
+                                key={tag}
+                                className="flex items-center gap-1.5 px-4 py-1.5 border border-purple-200 rounded-full text-xs text-purple-600 bg-white shadow-sm hover:bg-purple-50 transition"
+                            >
+                                {tag}
+                                <GoArrowRight size={14} />
                             </span>
-
-                        </div>
-
-                        <div className="absolute bottom-[20%] left-[18%] md:left-[20%] border-4 rounded-full border-white flex items-center gap-3">
-                            <div className="w-5 sm:w-8 h-5 sm:h-8 rounded-full bg-purple-600 flex items-center justify-center">
-                                <HiArrowRight className="text-white text-lg" />
-                            </div>
-                        </div>
-
-                        {/* 🔥 NEW: BOTTOM OVERLAY TEXT */}
-                        <div className="absolute bottom-5 md:bottom-16 left-[45%] -translate-x-1/3 sm:-translate-x-1/4 text-left max-w-3xl xl:max-w-4xl">
-                            <h3 className="text-white text-sm  sm:text-lg md:text-2xl xl:text-4xl font-semibold mb-2">
-                                Application Design
-                            </h3>
-                            <p className="text-[#9F50E9] text-[8px] sm:text-[10px] md:text-xs xl:text-sm leading-relaxed">
-                                Mock offers a desktop application that functions as a real-time AI interview assistant.
-                                The application operates silently in the background and provides contextual support
-                                during interviews, including response structuring, keyword suggestions, and confidence cues.
-                            </p>
-
-                            <div className="flex flex-wrap justify-center gap-2 mt-4 w-full">
-                                {["Minimal UI", "Stealth Mode", "Low Resource Usage"].map((tag) => (
-                                    <span
-                                        key={tag}
-                                        className="flex items-center lg:gap-2 px-1  sm:px-2 xl:px-6 sm:py-1 border border-white/40 rounded-full text-[8px] lg:text-xs text-white"
-                                    >
-                                        {tag}
-                                        <GoArrowRight size={20} />
-                                    </span>
-
-                                ))}
-
-                            </div>
-                        </div>
-
+                        ))}
                     </div>
                 </div>
 
-                {/* ================= TITLE ================= */}
-                <div className="absolute  right-0 lg:right-20  top-56 sm:top-60 lg:top-5 text-right z-10">
-                    <h1 className="text-sm sm:text-lg md:text-2xl lg:text-5xl font-bold">
-                        <span className="text-purple-600">Desktop</span>
-                    </h1>
-                    <h1 className="text-sm sm:text-lg md:text-2xl lg:text-5xl font-bold">
-                        <span className="text-purple-500">Application</span>
-                    </h1>
-                    <p className="text-xs sm:text-sm md:text-xl lg:text-2xl text-gray-800 font-medium sm:mt-2 text-left">
-                        AI Interview Assistant
-                    </p>
-                </div>
+                {/* ══════════════ RIGHT PANEL ══════════════ */}
+                <div className="lg:w-[220px] flex flex-row lg:flex-col justify-between items-center lg:items-start gap-6 lg:gap-0 mt-16 lg:mt-0">
 
-                {/* ================= RIGHT SIDEBAR ================= */}
-                <div className="w-full lg:w-[120px] lg:h-[60vh] flex flex-col md:flex-row lg:flex-col items-center justify-between mt-10 md:mt-0 lg:mt-20">
-                    <div className="flex flex-row lg:flex-col items-center gap-5">
-                        {["/vector2.svg", "/vector1.svg", "/vector.svg"].map((icon, index) => (
-                            <div
-                                key={index}
-                                className="w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center cursor-pointer hover:scale-110 transition"
+                    {/* slide counter + description */}
+                    <div className="flex-1 lg:flex-none space-y-3">
+                        <p className="text-xs font-semibold tracking-widest text-purple-400 uppercase">Slides</p>
+                        {slides.map((slide, i) => (
+                            <button
+                                key={i}
+                                onClick={() => setActive(i)}
+                                className={`flex items-start gap-3 w-full text-left group transition-all duration-300 ${
+                                    active === i ? "opacity-100" : "opacity-40 hover:opacity-70"
+                                }`}
                             >
-                                <Image src={icon} alt="" width={18} height={18} />
-                            </div>
+                                {/* progress bar */}
+                                <div className="mt-1.5 flex-shrink-0 w-1 h-10 rounded-full overflow-hidden bg-gray-200">
+                                    <div className={`w-full bg-purple-500 rounded-full transition-all duration-300 ${active === i ? "h-full" : "h-0"}`} />
+                                </div>
+                                {/* thumbnail + label */}
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                    <div className="relative w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden border border-purple-100 shadow-sm"
+                                        style={{ clipPath: "polygon(0 0, 85% 0, 100% 15%, 100% 100%, 15% 100%, 0 85%)" }}
+                                    >
+                                        <Image
+                                            src={slide.src}
+                                            alt={`${slide.label} thumbnail`}
+                                            fill
+                                            className="object-cover"
+                                            sizes="40px"
+                                        />
+                                    </div>
+                                    <span className={`text-xs font-semibold truncate ${active === i ? "text-purple-700" : "text-gray-500"}`}>
+                                        {slide.label}
+                                    </span>
+                                </div>
+                            </button>
                         ))}
                     </div>
 
-                    <div className="flex flex-row lg:flex-col items-center gap-5 mt-10">
-                        <div className="w-10 h-10 rounded-full border border-purple-500 flex items-center justify-center text-purple-500">
-                            <RxDoubleArrowDown />
+                    {/* scroll indicator */}
+                    <div className="hidden lg:flex flex-col items-center gap-2 mt-auto">
+                        <div className="w-8 h-8 rounded-full border border-purple-400 flex items-center justify-center text-purple-400">
+                            <RxDoubleArrowDown size={14} />
                         </div>
-
-                        <span className="text-sm text-gray-700">Visual</span>
-
-                        <div className="flex flex-row lg:flex-col gap-8 mt-2">
-                            {[0, 1, 2].map((item) => (
-                                <div
-                                    key={item}
-                                    onClick={() => setActive(item)}
-                                    className={`w-10 h-10 rounded-full cursor-pointer transition-all
-                    ${active === item
-                                            ? "bg-purple-500 scale-110"
-                                            : "bg-gray-300 hover:bg-purple-300 hover:scale-110"
-                                        }`}
-                                />
-                            ))}
-                        </div>
+                        <span className="text-[10px] text-gray-400 tracking-widest uppercase">Scroll</span>
                     </div>
+
                 </div>
 
             </div>

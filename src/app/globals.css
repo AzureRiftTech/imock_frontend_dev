@@ -103,3 +103,21 @@ body {
 .robot-zoom {
   animation: zoomIn 1.2s ease-out forwards;
 }
+@keyframes typing {
+  from {
+    max-width: 0;
+  }
+  to {
+    max-width: 100%;
+  }
+}
+
+.typewriter-multiline {
+  display: inline-block;
+  overflow: hidden;
+  white-space: normal;        /* allow line break */
+  max-width: 0;
+  animation: typing 3s steps(45, end) forwards;
+}
+
+

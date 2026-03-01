@@ -60,6 +60,15 @@ export default function ConnectedAccountsPage() {
     load()
   }, [load])
 
+  // Re-fetch connections when user returns to this tab (e.g. after OAuth redirect)
+  React.useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') load()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [load])
+
   const fetchGithub = async () => {
     setError(null)
     try {

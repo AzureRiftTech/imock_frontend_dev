@@ -566,6 +566,18 @@ export default function DashboardPage() {
   const [jobsError, setJobsError] = useState<string | null>(null)
   const [currentJobIndex, setCurrentJobIndex] = useState(0)
 
+  // Arena / Artifact state
+  const [arenaArtifactCount, setArenaArtifactCount] = useState<number | null>(null)
+  const [earnedArtifacts, setEarnedArtifacts] = useState<Array<{
+    id: number; artifact_id: number; count: number; name: string
+    icon_url: string | null; rarity: string; points_reward: number
+  }>>([])  
+  const [arenaEvents, setArenaEvents] = useState<Array<{
+    event_id: number; title: string; type: string; prize_pool: string | null
+    difficulty: string; start_date: string | null; participants_count: number
+    is_featured: boolean; banner_image_url: string | null
+  }>>([])
+
   // Calendar interaction state
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [dateInterviews, setDateInterviews] = useState<Array<Record<string, unknown>>>([])
@@ -634,6 +646,26 @@ export default function DashboardPage() {
     loadUserDetails()
   }, [user])
 
+  // Fetch arena data (artifact count + events)
+  useEffect(() => {
+    if (!user) return
+    const loadArena = async () => {
+      try {
+        const [earnedRes, eventsRes] = await Promise.all([
+          api.get('/artifacts/mine'),
+          api.get('/events'),
+        ])
+        const earned = Array.isArray(earnedRes.data) ? earnedRes.data : []
+        setArenaArtifactCount(earned.length)
+        setEarnedArtifacts(earned)
+        setArenaEvents(Array.isArray(eventsRes.data) ? eventsRes.data.slice(0, 8) : [])
+      } catch {
+        // non-critical, fail silently
+      }
+    }
+    loadArena()
+  }, [user])
+
   const refreshDash = async () => {
     setDashLoading(true)
     setDashError(null)
@@ -648,80 +680,74 @@ export default function DashboardPage() {
     }
   }
 
-  // Fetch job listings from RapidAPI
+  // Fetch job listings from RapidAPI — cached in localStorage for 30 minutes
+  const JOBS_CACHE_TTL = 30 * 60 * 1000 // 30 min in ms
+
+  const buildJobQuery = (details: Record<string, unknown> | null): string => {
+    let q = 'developer jobs in india'
+    if (!details) return q
+
+    let skills: string[] = []
+    if (details.skills) {
+      try {
+        skills = typeof details.skills === 'string' ? JSON.parse(details.skills) : (details.skills as string[])
+      } catch { skills = [] }
+    }
+
+    if (details.current_role === 'Student') {
+      if (skills.length > 0) q = `${skills.slice(0, 2).join(' ')} fresher jobs in india`
+      else if (details.branch) q = `${details.branch} fresher jobs in india`
+    } else if (details.current_role === 'Fresher') {
+      if (details.headline) q = `${details.headline} fresher jobs in india`
+      else if (skills.length > 0) q = `${skills.slice(0, 2).join(' ')} fresher jobs in india`
+    } else if (details.current_role === 'Professional') {
+      if (details.headline) q = `${details.headline} jobs in india`
+      else if (skills.length > 0) q = `${skills.slice(0, 2).join(' ')} jobs in india`
+    } else if (skills.length > 0) {
+      q = `${skills.slice(0, 2).join(' ')} jobs in india`
+    }
+
+    if (details.location) q = q.replace('india', `${details.location}, india`)
+    return q
+  }
+
   useEffect(() => {
     const fetchJobs = async () => {
+      const jobQuery = buildJobQuery(userDetails)
+      const cacheKey = `imock_jobs_${jobQuery}`
+
+      // --- Check cache ---
+      try {
+        const cached = localStorage.getItem(cacheKey)
+        if (cached) {
+          const { data, ts } = JSON.parse(cached) as { data: Array<Record<string, unknown>>; ts: number }
+          if (Date.now() - ts < JOBS_CACHE_TTL) {
+            setJobs(data)
+            return // serve from cache, skip API call
+          }
+        }
+      } catch { /* ignore parse errors */ }
+
+      // --- Fetch fresh ---
       setJobsLoading(true)
       setJobsError(null)
       try {
-        // Build personalized query based on user details
-        let jobQuery = 'developer jobs in india'
-        
-        if (userDetails) {
-          // Parse skills if it's a JSON string
-          let skills: string[] = []
-          if (userDetails.skills) {
-            try {
-              skills = typeof userDetails.skills === 'string' 
-                ? JSON.parse(userDetails.skills) 
-                : userDetails.skills
-            } catch {
-              skills = []
-            }
-          }
-
-          // Build query based on role and skills
-          if (userDetails.current_role === 'Student') {
-            // For students, use their branch/skills
-            if (skills.length > 0) {
-              jobQuery = `${skills.slice(0, 2).join(' ')} fresher jobs in india`
-            } else if (userDetails.branch) {
-              jobQuery = `${userDetails.branch} fresher jobs in india`
-            }
-          } else if (userDetails.current_role === 'Fresher') {
-            // For freshers, use their aspiring role and skills
-            if (userDetails.headline) {
-              jobQuery = `${userDetails.headline} fresher jobs in india`
-            } else if (skills.length > 0) {
-              jobQuery = `${skills.slice(0, 2).join(' ')} fresher jobs in india`
-            }
-          } else if (userDetails.current_role === 'Professional') {
-            // For professionals, use their current role and experience
-            if (userDetails.headline && userDetails.experience) {
-              jobQuery = `${userDetails.headline} jobs in india`
-            } else if (skills.length > 0) {
-              jobQuery = `${skills.slice(0, 2).join(' ')} jobs in india`
-            }
-          } else if (skills.length > 0) {
-            // Fallback to skills-based search
-            jobQuery = `${skills.slice(0, 2).join(' ')} jobs in india`
-          }
-
-          // Add location if available
-          if (userDetails.location) {
-            jobQuery = jobQuery.replace('india', `${userDetails.location}, india`)
-          }
-        }
-
-        const options = {
+        const response = await axios.request({
           method: 'GET',
           url: 'https://jsearch.p.rapidapi.com/search',
-          params: {
-            query: jobQuery,
-            page: '1',
-            num_pages: '1',
-            country: 'in', // India
-            date_posted: 'week'
-          },
+          params: { query: jobQuery, page: '1', num_pages: '1', country: 'in', date_posted: 'week' },
           headers: {
-            'x-rapidapi-key': process.env.NEXT_PUBLIC_RAPIDAPI_KEY || 'ff814a8f8cmsh0aa30af17e3e1cdp1ed0f2jsnbd8e56c092ca',
-            'x-rapidapi-host': process.env.NEXT_PUBLIC_RAPIDAPI_HOST || 'jsearch.p.rapidapi.com'
-          }
-        }
-        const response = await axios.request(options)
-        if (response.data && response.data.data) {
-          // Take first 5 jobs
-          setJobs(response.data.data.slice(0, 5))
+            'x-rapidapi-key': process.env.NEXT_PUBLIC_RAPIDAPI_KEY || '',
+            'x-rapidapi-host': process.env.NEXT_PUBLIC_RAPIDAPI_HOST || 'jsearch.p.rapidapi.com',
+          },
+        })
+        if (response.data?.data) {
+          const fresh = response.data.data.slice(0, 5) as Array<Record<string, unknown>>
+          setJobs(fresh)
+          // --- Store in cache ---
+          try {
+            localStorage.setItem(cacheKey, JSON.stringify({ data: fresh, ts: Date.now() }))
+          } catch { /* quota exceeded — ignore */ }
         }
       } catch (error: unknown) {
         console.error('Error fetching jobs:', getErrorMessage(error))
@@ -730,12 +756,8 @@ export default function DashboardPage() {
         setJobsLoading(false)
       }
     }
-    
-    // Only fetch jobs after user details are loaded or after a short delay
-    const timer = setTimeout(() => {
-      fetchJobs()
-    }, 500)
-    
+
+    const timer = setTimeout(fetchJobs, 500)
     return () => clearTimeout(timer)
   }, [userDetails])
 
@@ -750,23 +772,29 @@ export default function DashboardPage() {
     );
   };
 
-  const artifactImages = [
-    "/artifact.svg",
-    "/badge.svg",
-    "/artifact.svg",
-  ];
+  // Events slider helpers
+  const eventsForSlider = arenaEvents.length > 0 ? arenaEvents : []
+  const sliderLen = eventsForSlider.length
 
   const prevSlide = () => {
-    setCurrent((prev) =>
-      prev === 0 ? artifactImages.length - 1 : prev - 1
-    );
+    setCurrent((prev) => (sliderLen === 0 ? 0 : prev === 0 ? sliderLen - 1 : prev - 1));
   };
 
   const nextSlide = () => {
-    setCurrent((prev) =>
-      prev === artifactImages.length - 1 ? 0 : prev + 1
-    );
+    setCurrent((prev) => (sliderLen === 0 ? 0 : prev === sliderLen - 1 ? 0 : prev + 1));
   };
+
+  const EVENT_TYPE_COLORS: Record<string, string> = {
+    hackathon: 'from-orange-400 to-red-400',
+    coding_challenge: 'from-blue-400 to-cyan-400',
+    webinar: 'from-purple-400 to-violet-400',
+    workshop: 'from-teal-400 to-green-400',
+    bootcamp: 'from-pink-400 to-rose-400',
+  }
+  const EVENT_TYPE_LABELS: Record<string, string> = {
+    hackathon: 'Hackathon', coding_challenge: 'Challenge',
+    webinar: 'Webinar', workshop: 'Workshop', bootcamp: 'Bootcamp',
+  }
 
   const nextJob = () => {
     setCurrentJobIndex((prev) =>
@@ -982,53 +1010,98 @@ export default function DashboardPage() {
 
             {/* BIG CARDS */}
             {/* <div className="grid grid-cols-2 gap-6"> */}
-            <div className="w-full flex flex-col gap-5 ">
-              <div className="relative flex flex-col items-center justify-center border border-[#AE73F3]/60 rounded-2xl bg-[#F7F4FF]">
+            <div className="w-full flex flex-col gap-5">
+              {/* ── Arena Challenges Slider ─────────────────────────── */}
+              <div className="relative border border-[#AE73F3]/60 rounded-2xl overflow-hidden bg-[#F7F4FF] min-h-[200px] flex flex-col">
+                {eventsForSlider.length === 0 ? (
+                  <div className="flex-1 flex flex-col items-center justify-center p-6 gap-2">
+                    <span className="text-3xl">🏆</span>
+                    <p className="text-sm text-[#6C1BB8] font-semibold text-center">Arena Challenges</p>
+                    <p className="text-xs text-zinc-400 text-center">No events yet — check back soon!</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Gradient header */}
+                    <div className={`bg-gradient-to-r ${EVENT_TYPE_COLORS[eventsForSlider[current]?.type] ?? 'from-[#9F50E9] to-[#c084fc]'} px-4 pt-4 pb-3`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-bold text-white/90 bg-white/20 rounded-full px-2 py-0.5">
+                          {EVENT_TYPE_LABELS[eventsForSlider[current]?.type] ?? eventsForSlider[current]?.type}
+                        </span>
+                        {eventsForSlider[current]?.is_featured && <span className="text-yellow-300 text-sm">⭐</span>}
+                      </div>
+                      <p className="text-white font-bold text-sm leading-snug line-clamp-2">
+                        {eventsForSlider[current]?.title}
+                      </p>
+                    </div>
 
-                {/* Image Carousel */}
-                <div className="relative w-[140px] h-[140px] flex items-center justify-center mb-3">
+                    {/* Body */}
+                    <div className="px-4 py-3 flex-1 flex flex-col gap-2">
+                      <div className="flex flex-wrap gap-2 text-xs text-zinc-500">
+                        {eventsForSlider[current]?.prize_pool && (
+                          <span className="text-[#9F50E9] font-semibold">🏆 {eventsForSlider[current].prize_pool}</span>
+                        )}
+                        <span className="capitalize bg-zinc-100 rounded-full px-2 py-0.5">
+                          {eventsForSlider[current]?.difficulty}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          👥 {eventsForSlider[current]?.participants_count} joined
+                        </span>
+                        {eventsForSlider[current]?.start_date && (
+                          <span>📅 {new Date(eventsForSlider[current].start_date!).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</span>
+                        )}
+                      </div>
+                      <a href="/arena" className="inline-block mt-auto text-xs font-semibold text-[#9F50E9] hover:underline">
+                        View in Arena →
+                      </a>
+                    </div>
 
-                  {/* Left Arrow */}
-                  <button
-                    onClick={prevSlide}
-                    className="absolute -left-5 z-10 w-7 h-7 rounded-full bg-[#9F50E9] text-white flex items-center justify-center shadow hover:scale-105 transition"
-                  >
-                    ‹
-                  </button>
-
-                  {/* Image */}
-                  <Image
-                    src={artifactImages[current]}
-                    alt="Artifact"
-                    width={110}
-                    height={110}
-                    className="transition-all duration-300 ease-in-out"
-                  />
-
-                  {/* Right Arrow */}
-                  <button
-                    onClick={nextSlide}
-                    className="absolute -right-5 z-10 w-7 h-7 rounded-full bg-[#9F50E9] text-white flex items-center justify-center shadow hover:scale-105 transition"
-                  >
-                    ›
-                  </button>
-                </div>
-
-                {/* Text */}
-                <p className="text-lg lg:text-xl  font-semibold text-[#6C1BB8]">
-                  Total Artifact
-                </p>
-                <h3 className="text-3xl lg:text-4xl font-bold text-[#9F50E9] mt-1">
-                  45
-                </h3>
+                    {/* Arrows + dots */}
+                    <div className="flex items-center justify-between px-4 pb-3">
+                      <button onClick={prevSlide} className="w-7 h-7 rounded-full bg-[#9F50E9] text-white flex items-center justify-center shadow hover:scale-105 transition text-base">‹</button>
+                      <div className="flex gap-1">
+                        {eventsForSlider.map((_, i) => (
+                          <button key={i} onClick={() => setCurrent(i)}
+                            className={`w-1.5 h-1.5 rounded-full transition-all ${i === current ? 'bg-[#9F50E9] w-3' : 'bg-[#9F50E9]/30'}`}
+                          />
+                        ))}
+                      </div>
+                      <button onClick={nextSlide} className="w-7 h-7 rounded-full bg-[#9F50E9] text-white flex items-center justify-center shadow hover:scale-105 transition text-base">›</button>
+                    </div>
+                  </>
+                )}
               </div>
-              <div className="flex flex-col items-center justify-center border border-[#AE73F3]/60 rounded-2xl py-3 bg-[#F7F4FF]">
-                <div className="flex flex-col items-center">
-                  <p className="text-lg lg:text-xl  font-semibold text-[#6C1BB8]">Total Badges</p>
-                  <h3 className="text-3xl lg:text-4xl font-bold text-[#9F50E9]">45</h3>
 
-                  <Image src="/badge.svg" alt="" height={100} width={100} />
-                </div>
+              {/* ── Total Artifact (dynamic) ────────────────────────── */}
+              <div className="flex flex-col items-center justify-center border border-[#AE73F3]/60 rounded-2xl py-4 bg-[#F7F4FF] gap-2">
+                <p className="text-lg lg:text-xl font-semibold text-[#6C1BB8]">Total Artifacts</p>
+                {earnedArtifacts.length > 0 ? (
+                  <div className="flex flex-wrap justify-center gap-2 px-3">
+                    {earnedArtifacts.slice(0, 6).map((a) => (
+                      <div key={a.id} className="flex flex-col items-center gap-0.5" title={`${a.name} (×${a.count})`}>
+                        {a.icon_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={a.icon_url}
+                            alt={a.name}
+                            className="w-10 h-10 object-contain rounded-lg border border-[#AE73F3]/30 bg-white p-0.5"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg border border-[#AE73F3]/30 bg-white flex items-center justify-center text-xl">
+                            🏅
+                          </div>
+                        )}
+                        {a.count > 1 && (
+                          <span className="text-[10px] text-[#9F50E9] font-semibold">×{a.count}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <h3 className="text-3xl lg:text-4xl font-bold text-[#9F50E9]">
+                  {arenaArtifactCount !== null ? arenaArtifactCount : '—'}
+                </h3>
+                <a href="/arena" className="text-xs text-[#9F50E9] hover:underline mt-1">View Collection →</a>
               </div>
             </div>
           </div>

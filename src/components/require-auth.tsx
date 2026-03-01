@@ -11,6 +11,8 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   const [checkingDetails, setCheckingDetails] = React.useState(true)
   const [hasDetails, setHasDetails] = React.useState(false)
+  // Once verified, skip re-checking on every page navigation
+  const detailsVerified = React.useRef(false)
 
   React.useEffect(() => {
     if (!loading && !user) {
@@ -20,11 +22,17 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     if (!user || loading) return
-    
+
     // Don't check if already on user-details page to avoid redirect loop
     if (pathname === '/user-details') {
       setCheckingDetails(false)
       setHasDetails(true)
+      return
+    }
+
+    // Already confirmed this user has details — skip re-check on navigation
+    if (detailsVerified.current) {
+      setCheckingDetails(false)
       return
     }
 
@@ -36,17 +44,23 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
           router.replace('/user-details')
           setHasDetails(false)
         } else {
+          detailsVerified.current = true
           setHasDetails(true)
         }
-      } catch {
-        router.replace('/user-details')
+      } catch (err: unknown) {
+        // On 401 (expired/invalid token) → send to login
+        const status = (err as { response?: { status?: number } })?.response?.status
+        if (status === 401) {
+          router.replace('/login')
+        }
+        // For other errors (network, 5xx), don't redirect — just stop loading
         setHasDetails(false)
       } finally {
         setCheckingDetails(false)
       }
     }
 
-    checkUserDetails()
+    void checkUserDetails()
   }, [user, loading, router, pathname])
 
   if (loading || checkingDetails) {

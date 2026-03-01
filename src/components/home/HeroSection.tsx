@@ -62,7 +62,13 @@ const HeroSection = () => {
                     </div>
 
                     <div className="flex flex-col justify-center items-center gap-10 w-full lg:w-[70%] mt-10">
-                        <p className="text-xl md:text-5xl text-center font-semibold">Land Your <span className="text-[#8D38DD]">Dream Gob </span>With <br />Confidence</p>
+                        <p className="text-xl md:text-5xl text-center font-semibold leading-tight">
+                            <span className="typewriter-multiline">
+                                Land Your <span className="text-[#8D38DD]">Dream Job </span>With
+                                <br />
+                                Confidence
+                            </span>
+                        </p>
                         <p className="text-center  text-sm md:text-lg">Prepare for real interviews using our AI-powered mock interview platform designed to adapt to your resume and role. Practice real-world questions, receive instant feedback, and improve your performance with every session.</p>
                         <button onClick={handleNavigate} className="rounded-full px-7 py-3 bg-[#8D38DD] text-white shadow-[0_20px_40px_rgba(168,85,247,0.25)] hover:animate-pulse">Start new session</button>
                     </div>
@@ -72,7 +78,7 @@ const HeroSection = () => {
                         {/* 52+ CARD */}
                         <div className="relative w-[140px] rounded-2xl bg-[#8D38DD] flex flex-col py-4 items-center  md:top-10 lg:-top-10  -right-24 md:-right-40 lg:-right-6">
                             <span className="absolute inset-0 rounded-2xl bg-[#4C0E87]/30 opacity-20 animate-ping pointer-events-none" />
-                            
+
                             <p className="text-[26px] font-extrabold leading-none text-white">
                                 52+
                             </p>

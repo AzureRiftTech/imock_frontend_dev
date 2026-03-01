@@ -7,10 +7,11 @@ import {
   LayoutDashboard,
   Calendar,
   CreditCard,
-  Link2,
   FileText,
+  PenLine,
   User,
   Shield,
+  Trophy,
 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import Image from 'next/image'
@@ -47,12 +48,13 @@ export function Sidebar() {
   }, [])
 
   const items: NavItem[] = [
-    { href: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-    { href: '/interviews', label: 'Interviews', icon: <Calendar size={18} /> },
-    { href: '/cv', label: 'CVs', icon: <FileText size={18} /> },
-    { href: '/subscriptions', label: 'Subscriptions', icon: <CreditCard size={18} /> },
-    { href: '/connected-accounts', label: 'Connections', icon: <Link2 size={18} /> },
-    { href: '/profile', label: 'Profile', icon: <User size={18} /> },
+    { href: '/dashboard',          label: 'Dashboard',    icon: <LayoutDashboard size={18} /> },
+    { href: '/interviews',         label: 'Interviews',   icon: <Calendar size={18} /> },
+    { href: '/cv',                 label: 'CVs',          icon: <FileText size={18} /> },
+    { href: '/resume-builder',     label: 'Resume Builder', icon: <PenLine size={18} /> },
+    { href: '/arena',               label: 'Arena',        icon: <Trophy size={18} /> },
+    { href: '/subscriptions',      label: 'Subscriptions', icon: <CreditCard size={18} /> },
+    { href: '/profile',            label: 'Profile',      icon: <User size={18} /> },
   ]
 
   if (user?.role === 'super_admin') {
@@ -60,6 +62,11 @@ export function Sidebar() {
       href: '/super-admin',
       label: 'Super Admin',
       icon: <Shield size={18} />,
+    })
+    items.push({
+      href: '/admin-artifacts',
+      label: 'Arena Admin',
+      icon: <Trophy size={18} />,
     })
   }
 

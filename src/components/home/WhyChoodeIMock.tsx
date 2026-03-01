@@ -27,8 +27,15 @@ const WhyChooseIMock = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-end">
 
                     {/* Card 1 - Tall Card (Affordable Pricing) */}
-                    <div className="lg:col-span-1 w-full h-[450px] bg-[#BFBFBF] rounded-[32px] p-6 flex flex-col justify-end ">
-                        <div className="space-y-2">
+                    <div className="relative lg:col-span-1 w-full h-[450px] rounded-[32px] p-6 flex flex-col justify-end overflow-hidden">
+                        <Image
+                            src="/Assets/Affordable Pricing.webp"
+                            alt="Affordable pricing plans for students and professionals on IMock AI mock interview platform"
+                            fill
+                            className="object-cover rounded-[32px]"
+                            sizes="(max-width: 1024px) 100vw, 25vw"
+                        />
+                        <div className="relative z-10 bg-white/50 backdrop-blur-sm rounded-2xl px-4 py-3 space-y-2">
                             <p className="text-sm text-[#505050] leading-relaxed font-medium">
                                 Affordable pricing tailored for students and professionals
                             </p>
@@ -36,17 +43,24 @@ const WhyChooseIMock = () => {
                     </div>
 
                     {/* Card 2 - Medium Card (Tracking & Detection) */}
-                    <div className="lg:col-span-1 w-full h-[380px] rounded-[32px] p-6 flex flex-col justify-end ">
-                        <div className="lg:col-span-1 w-full h-[450px] bg-[#BFBFBF] rounded-[32px] p-6 flex flex-col justify-end ">
+                    <div className="lg:col-span-1 w-full h-[380px] rounded-[32px] p-4 flex flex-col justify-end gap-3 overflow-hidden">
+                        <div className="relative w-full flex-1 min-h-0 rounded-[24px] overflow-hidden">
+                            <Image
+                                src="/Assets/Tracking & Detection.webp"
+                                alt="Real-time interview tracking and cheating detection features for fair AI-powered mock interviews on IMock"
+                                fill
+                                className="object-cover rounded-[32px]"
+                                sizes="(max-width: 1024px) 100vw, 25vw"
+                            />
                         </div>
-                        <div className="space-y-4">
+                        <div className="bg-white/50 backdrop-blur-sm rounded-2xl px-4 py-3 space-y-4">
                             {/* Icons Row */}
                             <div className="flex gap-3">
-                                <div className="flex items-center gap-1.5 bg-white/40 backdrop-blur-sm rounded-lg px-3 py-1.5">
+                                <div className="flex items-center gap-1.5 bg-white/60 backdrop-blur-sm rounded-lg px-3 py-1.5">
                                     <span className="text-base">📊</span>
                                     <span className="text-xs font-semibold text-gray-800">Tracking</span>
                                 </div>
-                                <div className="flex items-center gap-1.5 bg-white/40 backdrop-blur-sm rounded-lg px-3 py-1.5">
+                                <div className="flex items-center gap-1.5 bg-white/60 backdrop-blur-sm rounded-lg px-3 py-1.5">
                                     <span className="text-base"><HiOutlineBellAlert size={24} /></span>
                                     <span className="text-xs font-semibold text-gray-800">Detection</span>
                                 </div>
@@ -67,10 +81,17 @@ const WhyChooseIMock = () => {
                     </div>
 
                     {/* Card 3 - Medium Card (Combination of AI) */}
-                    <div className="lg:col-span-1 w-full h-[380px]  rounded-[32px] p-6 flex flex-col justify-end ">
-                        <div className="lg:col-span-1 w-full h-[450px] bg-[#BFBFBF] rounded-[32px] p-6 flex flex-col justify-end mb-5 ">
+                    <div className="lg:col-span-1 w-full h-[380px] rounded-[32px] p-4 flex flex-col justify-end gap-3 overflow-hidden">
+                        <div className="relative w-full flex-1 min-h-0 rounded-[24px] overflow-hidden">
+                            <Image
+                                src="/Assets/AI combined.webp"
+                                alt="Combination of AI intelligence for comprehensive interview preparation, feedback, and performance improvement on IMock"
+                                fill
+                                className="object-cover rounded-[32px]"
+                                sizes="(max-width: 1024px) 100vw, 25vw"
+                            />
                         </div>
-                        <div className="space-y-4">
+                        <div className="bg-white/50 backdrop-blur-sm rounded-2xl px-4 py-3 space-y-4">
                             {/* Learn More Button */}
                             <button className="bg-[#9F50E9] text-white text-xs font-bold px-6 py-2.5 rounded-full transition-all hover:scale-105 shadow-md">
                                 Learn More

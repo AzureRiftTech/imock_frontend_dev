@@ -22,12 +22,18 @@ export default function WhoIsFor() {
 
             {/* Students Card */}
             <div className="
-              flex flex-col justify-between bg-[#d9d9d9] rounded-3xl px-3 py-3
-              md:h-[40%] xl:h-[50%]
-        
+              relative flex flex-col justify-between rounded-3xl px-3 py-3 overflow-hidden
+              h-[280px] md:h-[300px] xl:h-[320px]
             ">
-              <div></div>
-              <div className="bg-white rounded-3xl p-4 flex flex-col justify-end
+              <Image
+                src="/Assets/Students & Freshers Card.webp"
+                alt="Students and freshers preparing for campus placements and entry-level interviews using IMock AI mock interview platform"
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, 30vw"
+              />
+              <div className="relative z-10"></div>
+              <div className="relative z-10 bg-white rounded-3xl p-4 flex flex-col justify-end
                 shadow-[0_10px_30px_rgba(0,0,0,0.12)]
               ">
                 <h3 className="text-xl font-bold text-[#9F50E9] mb-3">
@@ -41,14 +47,20 @@ export default function WhoIsFor() {
 
             {/* Explore Platform Card */}
             <div className="
-              flex justify-between bg-[#d9d9d9] rounded-3xl py-8
-          
+              relative flex justify-between items-center rounded-3xl py-8 px-4 overflow-hidden h-[110px]
             ">
-              <div className="text-xl xl:text-3xl font-bold text-[#9F50E9] leading-tight px-3">
+              <Image
+                src="/Assets/Explore the Platform Card.webp"
+                alt="Explore the IMock AI interview platform featuring role-based mock interviews, performance analytics, and live sessions"
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, 30vw"
+              />
+              <div className="relative z-10 text-xl xl:text-2xl font-bold text-[#6B21A8] leading-tight px-3 py-2 bg-white/80 backdrop-blur-md rounded-2xl shadow-sm">
                 Explore<br />the Platform
               </div>
 
-              <div className="flex justify-center items-center -space-x-3 bg-[#9F50E9] h-16 rounded-l-full px-2
+              <div className="relative z-10 flex justify-center items-center -space-x-3 bg-[#9F50E9] h-16 rounded-l-full px-2
                 shadow-[0_8px_20px_rgba(0,0,0,0.25)] 
               ">
                 {[1, 2, 3, 4].map((i) => (
@@ -66,19 +78,28 @@ export default function WhoIsFor() {
 
             {/* Candidates Card */}
             <div className="
-              bg-[#d9d9d9] rounded-3xl py-5 px-5
+              relative rounded-3xl py-5 px-5 overflow-hidden
+              h-[220px]
               shadow-[0_20px_50px_rgba(159,80,233,0.18)]
-              shadow-[0_30px_80px_rgba(159,80,233,0.25)]
               transition-all duration-300
             ">
-              <h3 className="text-xl font-bold text-[#9F50E9] mb-3">
-                Candidates
-              </h3>
-              <p className="text-sm text-[#9F50E9] leading-relaxed mb-5">
-                AI-based interviews practice with natural feedback on answers, clarity, and confidence.
-              </p>
+              <Image
+                src="/Assets/candidate card.webp"
+                alt="AI-based interview practice for job candidates with real-time feedback on answers, clarity, and confidence on IMock"
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, 30vw"
+              />
+              <div className="relative z-10 bg-white/80 backdrop-blur-md rounded-2xl px-4 pt-4 pb-2 mb-4 shadow-sm">
+                <h3 className="text-xl font-bold text-[#6B21A8] mb-2">
+                  Candidates
+                </h3>
+                <p className="text-sm text-[#6B21A8] leading-relaxed">
+                  AI-based interviews practice with natural feedback on answers, clarity, and confidence.
+                </p>
+              </div>
               <button className="
-                inline-flex items-center gap-2 px-5 py-3 bg-white rounded-full
+                relative z-10 inline-flex items-center gap-2 px-5 py-3 bg-white rounded-full
                 text-sm font-semibold text-[#9F50E9]
                 shadow-[0_6px_18px_rgba(0,0,0,0.15)]
                 hover:bg-purple-50 hover:-translate-y-0.5
@@ -92,13 +113,22 @@ export default function WhoIsFor() {
 
           {/* ================= RIGHT COLUMN ================= */}
           <div className="
-            relative w-full md:w-[70%] space-y-5 bg-[#d9d9d9] rounded-3xl p-6
+            relative w-full md:w-[70%] space-y-5 rounded-3xl p-6 overflow-hidden
             h-[710px] xl:h-[770px] flex flex-col justify-between
            
           ">
+            <Image
+              src="/Assets/who imock is for.webp"
+              alt="Who IMock is for - AI mock interview platform designed for students, freshers, working professionals, and job seekers across 450+ roles"
+              fill
+              className="object-cover"
+              priority
+              sizes="(max-width: 768px) 100vw, 70vw"
+            />
 
             {/* Title */}
-            <div className="sm:p-10">
+            <div className="relative z-10 sm:p-10">
+              <div className="inline-block bg-black/20 backdrop-blur-sm rounded-3xl px-6 py-4 mb-0">
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
                 Who <span className="text-[#9F50E9]">IMock</span> Is For
               </h1>
@@ -120,10 +150,11 @@ export default function WhoIsFor() {
                   </span>
                 ))}
               </div>
+              </div>
             </div>
 
             {/* Bottom Row */}
-            <div className="flex flex-col md:flex-row gap-5 relative">
+            <div className="flex flex-col md:flex-row gap-5 relative z-10">
 
               {/* AI Card */}
               <div className="

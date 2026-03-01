@@ -307,6 +307,9 @@ type Subscription = {
   plan_id: number
   plan_name?: string
   is_active: boolean
+  start_date?: string
+  end_date?: string
+  status?: string
 }
 
 export default function SubscriptionsPage() {
@@ -314,9 +317,11 @@ export default function SubscriptionsPage() {
   const [selected, setSelected] = useState<number | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [activeSubscription, setActiveSubscription] = useState<Subscription | null>(null);
+  const [scheduledSubscription, setScheduledSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [subscribing, setSubscribing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -329,7 +334,7 @@ export default function SubscriptionsPage() {
     try {
       const [plansRes, subRes] = await Promise.all([
         api.get('/subscriptions/plans'),
-        api.get('/subscriptions/me').catch(() => ({ data: { subscription: null } }))
+        api.get('/subscriptions/me').catch(() => ({ data: { subscription: null, scheduled_subscription: null } }))
       ]);
       
       const fetchedPlans = (plansRes.data?.plans as Plan[]) || [];
@@ -338,8 +343,13 @@ export default function SubscriptionsPage() {
       const activeSub = (subRes.data?.subscription as Subscription) || null;
       setActiveSubscription(activeSub);
       
-      // Set selected to active plan or first plan
-      if (activeSub?.plan_id) {
+      const scheduledSub = (subRes.data?.scheduled_subscription as Subscription) || null;
+      setScheduledSubscription(scheduledSub);
+      
+      // Set selected to scheduled plan, then active plan, or first plan
+      if (scheduledSub?.plan_id) {
+        setSelected(scheduledSub.plan_id);
+      } else if (activeSub?.plan_id) {
         setSelected(activeSub.plan_id);
       } else if (fetchedPlans.length > 0) {
         setSelected(fetchedPlans[0].plan_id);
@@ -369,6 +379,14 @@ export default function SubscriptionsPage() {
     
     try {
       const response = await api.post('/subscriptions/subscribe', { plan_id: selected });
+      
+      // Check if this is a scheduled plan change
+      if (response.data.scheduled) {
+        setSuccessMessage(response.data.message || 'Plan change scheduled for next billing cycle.');
+        await loadData();
+        setSubscribing(false);
+        return;
+      }
       
       // If requires payment with Razorpay
       if (response.data.requires_payment && response.data.razorpay_subscription_id) {
@@ -406,6 +424,7 @@ export default function SubscriptionsPage() {
           rzp.open()
         } else {
           setError('Payment gateway unavailable')
+          setSubscribing(false)
         }
       } else {
         // Free plan or admin allocation - no payment required
@@ -416,6 +435,46 @@ export default function SubscriptionsPage() {
     } catch (err) {
       setError(getApiErrorMessage(err) || 'Failed to subscribe to plan');
       setSubscribing(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!activeSubscription) return;
+    
+    if (!confirm('Are you sure you want to cancel your subscription?')) return;
+    
+    setCancelling(true);
+    setError(null);
+    setSuccessMessage(null);
+    
+    try {
+      await api.post('/subscriptions/cancel', { subscription_id: activeSubscription.subscription_id });
+      setSuccessMessage('Subscription cancelled successfully.');
+      await loadData();
+    } catch (err) {
+      setError(getApiErrorMessage(err) || 'Failed to cancel subscription');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const handleCancelScheduled = async () => {
+    if (!scheduledSubscription) return;
+    
+    if (!confirm('Are you sure you want to cancel the scheduled plan change?')) return;
+    
+    setCancelling(true);
+    setError(null);
+    setSuccessMessage(null);
+    
+    try {
+      await api.post('/subscriptions/cancel', { subscription_id: scheduledSubscription.subscription_id });
+      setSuccessMessage('Scheduled plan change cancelled successfully.');
+      await loadData();
+    } catch (err) {
+      setError(getApiErrorMessage(err) || 'Failed to cancel scheduled plan change');
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -431,6 +490,7 @@ export default function SubscriptionsPage() {
 
   const selectedPlan = plans.find(p => p.plan_id === selected);
   const isActivePlan = (planId: number) => activeSubscription?.plan_id === planId;
+  const isScheduledPlan = (planId: number) => scheduledSubscription?.plan_id === planId;
 
   if (loading) {
     return (
@@ -464,6 +524,21 @@ export default function SubscriptionsPage() {
         </div>
       )}
 
+      {scheduledSubscription && (
+        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <div className="text-blue-600 text-xl">ℹ️</div>
+            <div>
+              <div className="font-semibold text-blue-900">Scheduled Plan Change</div>
+              <div className="text-sm text-blue-700 mt-1">
+                Your plan will change to <strong>{scheduledSubscription.plan_name}</strong> on{' '}
+                <strong>{new Date(scheduledSubscription.start_date || '').toLocaleDateString()}</strong> when your current subscription ends.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-center items-center my-6">
         <div className="bg-white shadow-sm rounded-full p-1 flex gap-1 border">
           <button
@@ -491,6 +566,7 @@ export default function SubscriptionsPage() {
           {plans.map((plan, index) => {
             const active = selected === plan.plan_id;
             const isActive = isActivePlan(plan.plan_id);
+            const isScheduled = isScheduledPlan(plan.plan_id);
             return (
               <div
                 key={plan.plan_id}
@@ -520,6 +596,11 @@ export default function SubscriptionsPage() {
                       {isActive && (
                         <span className="ml-2 text-xs font-normal">
                           (Current)
+                        </span>
+                      )}
+                      {isScheduled && (
+                        <span className="ml-2 text-xs font-normal">
+                          (Scheduled for {new Date(scheduledSubscription?.start_date || '').toLocaleDateString()})
                         </span>
                       )}
                     </p>
@@ -597,17 +678,55 @@ export default function SubscriptionsPage() {
             </div>
           </div>
           
-          <button
-            onClick={handleSubscribe}
-            disabled={subscribing || !selected || isActivePlan(selected || 0)}
-            className={`px-8 py-2.5 rounded-lg font-semibold transition-all shadow-lg ${
-              subscribing || !selected || isActivePlan(selected || 0)
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-[#9f50e9] text-white hover:bg-[#8d38dd]'
-            }`}
-          >
-            {subscribing ? 'Subscribing...' : isActivePlan(selected || 0) ? 'Current Plan' : 'Subscribe Now'}
-          </button>
+          <div className="flex gap-3">
+            {scheduledSubscription && (
+              <button
+                onClick={handleCancelScheduled}
+                disabled={cancelling}
+                className={`px-6 py-2.5 rounded-lg font-semibold transition-all shadow-lg ${
+                  cancelling
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-orange-500 text-white hover:bg-orange-600'
+                }`}
+              >
+                {cancelling ? 'Cancelling...' : 'Cancel Scheduled Change'}
+              </button>
+            )}
+            
+            {activeSubscription && (
+              <button
+                onClick={handleCancel}
+                disabled={cancelling}
+                className={`px-6 py-2.5 rounded-lg font-semibold transition-all shadow-lg ${
+                  cancelling
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-red-500 text-white hover:bg-red-600'
+                }`}
+              >
+                {cancelling ? 'Cancelling...' : 'Cancel Subscription'}
+              </button>
+            )}
+            
+            <button
+              onClick={handleSubscribe}
+              disabled={subscribing || !selected || (isActivePlan(selected || 0) && !scheduledSubscription)}
+              className={`px-8 py-2.5 rounded-lg font-semibold transition-all shadow-lg ${
+                subscribing || !selected || (isActivePlan(selected || 0) && !scheduledSubscription)
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-[#9f50e9] text-white hover:bg-[#8d38dd]'
+              }`}
+            >
+              {subscribing 
+                ? 'Processing...' 
+                : isActivePlan(selected || 0) && !scheduledSubscription
+                  ? 'Current Plan' 
+                  : isScheduledPlan(selected || 0)
+                    ? 'Scheduled'
+                    : activeSubscription 
+                      ? 'Schedule Plan Change'
+                      : 'Subscribe Now'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -21,6 +21,7 @@ function AuthCallbackInner() {
     if (processed) return
 
     const token = searchParams.get('token')
+    const isNewUser = searchParams.get('new') === '1'
     if (!token) {
       setError('Missing token in callback URL.')
       return
@@ -29,7 +30,13 @@ function AuthCallbackInner() {
     setProcessed(true)
     handleOAuthCallback(token)
       .then(({ hasDetails }) => {
-        router.replace(hasDetails ? '/dashboard' : '/user-details')
+        // Only redirect to user-details for genuinely new users without details;
+        // returning users always go to dashboard regardless of hasDetails state
+        if (isNewUser && !hasDetails) {
+          router.replace('/user-details')
+        } else {
+          router.replace('/dashboard')
+        }
       })
       .catch(() => setError('OAuth callback failed. Please try again.'))
     // eslint-disable-next-line react-hooks/exhaustive-deps

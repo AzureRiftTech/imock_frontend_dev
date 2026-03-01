@@ -571,6 +571,7 @@ import { getApiErrorMessage } from '@/lib/error';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
+import { AutocompleteInput, SkillsAutocomplete } from '@/components/ui/autocomplete-input';
 
 
 type UserDetails = {
@@ -592,6 +593,7 @@ type UserDetails = {
   branch?: string
   skills?: string[] | string | null
   experience?: string
+  current_company?: string
   [key: string]: unknown
 }
 
@@ -654,6 +656,20 @@ export default function UserDetailsPage() {
   const fullNameRef = React.useRef<HTMLInputElement | null>(null)
   const resumes = normalizeResumes(details)
 
+  type RefData = {
+    college: string[]; university: string[]; branch: string[]
+    skill: string[]; location: string[]; company: string[]
+  }
+  const [refData, setRefData] = React.useState<RefData>({
+    college: [], university: [], branch: [], skill: [], location: [], company: [],
+  })
+
+  React.useEffect(() => {
+    api.get('/ref-data/all').then((res) => {
+      if (res.data) setRefData(res.data as RefData)
+    }).catch(() => {})
+  }, [])
+
   // const handleInputChange = (e) => {
   //   const { name, value, type, checked } = e.target;
   //   setFormData(prev => ({
@@ -683,10 +699,11 @@ export default function UserDetailsPage() {
     void load()
   }, [load])
 
-  const addSkill = () => {
-    if (skillInput.trim() && !skills.includes(skillInput.trim())) {
-      setSkills((prev) => [...prev, skillInput.trim()])
-      setSkillInput('')
+  const addSkill = (skill?: string) => {
+    const s = (skill ?? skillInput).trim()
+    if (s && !skills.includes(s)) {
+      setSkills((prev) => [...prev, s])
+      if (!skill) setSkillInput('')
     }
   }
 
@@ -980,38 +997,35 @@ export default function UserDetailsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
               <div>
                 <label className="block text-xs text-[#4C0E87] mb-2">University Name</label>
-                <input
+                <AutocompleteInput
                   id="university_name"
                   value={String(details?.university_name || '')}
-                  onChange={(e) => updateDetailsField('university_name', e.target.value)}
-                  required
-                  type="text"
+                  onChange={(v) => updateDetailsField('university_name', v)}
+                  options={refData.university}
                   placeholder="University Name"
-                  className="w-full px-4 py-2.5  placeholder-[#9F50E9] border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  required
                 />
               </div>
               <div>
                 <label className="block text-xs text-[#4C0E87] mb-2">College Name</label>
-                <input
+                <AutocompleteInput
                   id="college_name"
                   value={String(details?.college_name || '')}
-                  onChange={(e) => updateDetailsField('college_name', e.target.value)}
-                  required
-                  type="text"
+                  onChange={(v) => updateDetailsField('college_name', v)}
+                  options={refData.college}
                   placeholder="Enter College"
-                  className="w-full px-4  placeholder-[#9F50E9]  py-2.5 border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  required
                 />
               </div>
               <div>
                 <label className="block text-xs text-[#4C0E87] mb-2">Branch Name</label>
-                <input
+                <AutocompleteInput
                   id="branch"
                   value={String(details?.branch || '')}
-                  onChange={(e) => updateDetailsField('branch', e.target.value)}
-                  required
-                  type="text"
+                  onChange={(v) => updateDetailsField('branch', v)}
+                  options={refData.branch}
                   placeholder="Branch"
-                  className="w-full px-4 py-2.5 placeholder-[#9F50E9]  border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  required
                 />
               </div>
             </div>
@@ -1087,19 +1101,12 @@ export default function UserDetailsPage() {
               </div>
               <div className="">
                 <label className="block text-xs text-[#4C0E87] mb-2">Skills</label>
-                <input
-                  type="text"
-                  id="skills"
-                  value={skillInput}
-                  onChange={(e) => setSkillInput(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      addSkill()
-                    }
-                  }}
+                <SkillsAutocomplete
+                  skills={skills}
+                  onAdd={addSkill}
+                  onRemove={removeSkill}
+                  options={refData.skill}
                   placeholder="Type a skill and press Enter"
-                  className="w-full px-4 py-2.5 placeholder-[#9F50E9] border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
             </div>
@@ -1167,20 +1174,23 @@ export default function UserDetailsPage() {
                 />
               </div>
               <div>
+                <label className="block text-xs text-[#4C0E87] mb-2">Current Company</label>
+                <AutocompleteInput
+                  id="current_company"
+                  value={String(details?.current_company || '')}
+                  onChange={(v) => updateDetailsField('current_company', v)}
+                  options={refData.company}
+                  placeholder="e.g., TCS, Infosys, Google India"
+                />
+              </div>
+              <div>
                 <label className="block text-xs text-[#4C0E87] mb-2">Skills</label>
-                <input
-                  type="text"
-                  id="skills"
-                  value={skillInput}
-                  onChange={(e) => setSkillInput(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      addSkill()
-                    }
-                  }}
+                <SkillsAutocomplete
+                  skills={skills}
+                  onAdd={addSkill}
+                  onRemove={removeSkill}
+                  options={refData.skill}
                   placeholder="Type a skill and press Enter"
-                  className="w-full px-4 py-2.5  placeholder-[#9F50E9] border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               {skills.length > 0 && (
@@ -1215,13 +1225,12 @@ export default function UserDetailsPage() {
               </div>
               <div>
                 <label className="block text-xs text-[#4C0E87] mb-2">Location</label>
-                <input
-                  type="text"
+                <AutocompleteInput
                   id="location"
                   value={String(details?.location || '')}
-                  onChange={(e) => updateDetailsField('location', e.target.value)}
-                  placeholder="location"
-                  className="w-full px-4 py-2.5  placeholder-[#9F50E9] border border-[#9F50E9] rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  onChange={(v) => updateDetailsField('location', v)}
+                  options={refData.location}
+                  placeholder="City / Location"
                 />
               </div>
               <div>
