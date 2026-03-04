@@ -528,6 +528,7 @@ export default function ArtifactsAdminPage() {
 
   // Guard: super_admin only
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (user && (user as any).role !== 'super_admin') router.replace('/dashboard')
   }, [user, router])
 

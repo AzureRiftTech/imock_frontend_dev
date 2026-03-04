@@ -1144,6 +1144,7 @@ export default function ProfilePage() {
         name: 'iMock',
         description: `${pkg.name} – ${pkg.credits} credits`,
         order_id, prefill,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         handler: async (response: any) => {
           try {
             const verify = await api.post('/credits/verify-payment', {
@@ -1162,6 +1163,7 @@ export default function ProfilePage() {
         modal: { ondismiss: () => { setPurchasingPackageId(null); setError('Payment cancelled') } },
         theme: { color: '#7c3aed' },
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       new (window as any).Razorpay(options).open()
     } catch (err) {
       setError(getApiErrorMessage(err) || 'Payment initiation failed')
