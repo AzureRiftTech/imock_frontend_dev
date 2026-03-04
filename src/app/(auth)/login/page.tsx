@@ -146,11 +146,15 @@ import { FcGoogle } from "react-icons/fc";
 
 export default function Login() {
   const router = useRouter()
-  const { login } = useAuth()
+  const { login, register } = useAuth()
   const [authMode, setAuthMode] = React.useState<'login' | 'signup'>('login')
   const [newsletter, setNewsletter] = React.useState(false)
   const [identifier, setIdentifier] = React.useState('')
   const [password, setPassword] = React.useState('')
+  const [firstName, setFirstName] = React.useState('')
+  const [lastName, setLastName] = React.useState('')
+  const [email, setEmail] = React.useState('')
+  const [phone, setPhone] = React.useState('')
   const [error, setError] = React.useState<string | null>(null)
   const [submitting, setSubmitting] = React.useState(false)
 
@@ -170,6 +174,29 @@ export default function Login() {
       }
     } catch (err: unknown) {
       setError(getApiErrorMessage(err) || 'Failed to sign in')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const onSubmitSignup = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setSubmitting(true)
+    try {
+      // Create username from email (part before @)
+      const username = email.split('@')[0]
+      const res = await register(username, email, password)
+      const user = res.user
+      if (user && user.email_verified === 0) {
+        router.push('/verify-email')
+      } else if (!res.hasDetails) {
+        router.push('/user-details')
+      } else {
+        router.push('/dashboard')
+      }
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err) || 'Failed to sign up')
     } finally {
       setSubmitting(false)
     }
@@ -269,6 +296,12 @@ export default function Login() {
             Enter your login details to sign in.
           </p>
 
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mb-4">
+              {error}
+            </div>
+          )}
+
           <form className="space-y-4" onSubmit={onSubmit}>
             <div>
               <label className="text-sm text-[#5C13A0]">Email address</label>
@@ -344,7 +377,7 @@ export default function Login() {
 
             <p className="text-center text-gray-600 text-sm">
               Don’t have an account?{" "}
-              <span className="text-black font-semibold cursor-pointer" onClick={() => setAuthMode('signup')}>Sign up</span>
+              <span className="text-black font-semibold cursor-pointer" onClick={() => { setAuthMode('signup'); setError(null); }}>Sign up</span>
             </p>
           </form>
 
@@ -380,11 +413,19 @@ export default function Login() {
             Enter your login details to sign in.
           </p>
 
-          <form className="space-y-4" onSubmit={onSubmit}>
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mb-4">
+              {error}
+            </div>
+          )}
+
+          <form className="space-y-4" onSubmit={onSubmitSignup}>
             <div>
               <label className="text-sm text-[#5C13A0]">First Name</label>
               <input
                 type="text"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
                 required
                 placeholder="First Name"
                 className="mt-1 w-full placeholder-[#CA98F9] rounded-lg border border-[#5C13A0] px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#9B5CF6]"
@@ -395,6 +436,8 @@ export default function Login() {
               <label className="text-sm text-[#5C13A0]">Last Name</label>
               <input
                 type="text"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
                 required
                 placeholder="Last Name"
                 className="mt-1 w-full placeholder-[#CA98F9] rounded-lg border border-[#5C13A0] px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#9B5CF6]"
@@ -404,12 +447,12 @@ export default function Login() {
             <div>
               <label className="text-sm text-[#5C13A0]">Email address</label>
               <input
-                type="text"
+                type="email"
                 autoComplete="email"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
-                placeholder="Enter Your Name"
+                placeholder="Enter Your Email"
                 className="mt-1 w-full placeholder-[#CA98F9] rounded-lg border border-[#5C13A0] px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#9B5CF6]"
               />
             </div>
@@ -417,7 +460,9 @@ export default function Login() {
             <div>
               <label className="text-sm text-[#5C13A0]">Phone Number</label>
               <input
-                type="text"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
                 required
                 placeholder="Phone number"
                 className="mt-1 w-full placeholder-[#CA98F9] rounded-lg border border-[#5C13A0] px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#9B5CF6]"
@@ -510,7 +555,7 @@ export default function Login() {
 
             <p className="text-center text-gray-600 text-sm">
              Already have an account? {" "}
-              <span className="text-black font-semibold cursor-pointer" onClick={() => setAuthMode('login')}>Log in</span>
+              <span className="text-black font-semibold cursor-pointer" onClick={() => { setAuthMode('login'); setError(null); }}>Log in</span>
             </p>
           </form>
 
